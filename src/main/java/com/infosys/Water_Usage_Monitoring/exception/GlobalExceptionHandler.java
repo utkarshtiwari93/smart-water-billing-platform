@@ -3,9 +3,11 @@ package com.infosys.Water_Usage_Monitoring.exception;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -33,7 +35,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Validation failed", errors);
     }
 
-    // jaise: usage logs wale household ko delete karne ki koshish (FK violation)
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> integrity(DataIntegrityViolationException e) {
         return build(HttpStatus.CONFLICT, "Operation violates data integrity (record may be in use)", null);
@@ -41,5 +42,20 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ApiError> build(HttpStatus s, String msg, Map<String, String> fe) {
         return ResponseEntity.status(s).body(new ApiError(s.value(), msg, LocalDateTime.now(), fe));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiError> badCredentials(BadCredentialsException e) {
+        return build(HttpStatus.UNAUTHORIZED, e.getMessage(), null);
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiError> badRequest(BadRequestException e) {
+        return build(HttpStatus.BAD_REQUEST, e.getMessage(), null);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> tooLarge(MaxUploadSizeExceededException e) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "File too large (max 5MB)", null);
     }
 }

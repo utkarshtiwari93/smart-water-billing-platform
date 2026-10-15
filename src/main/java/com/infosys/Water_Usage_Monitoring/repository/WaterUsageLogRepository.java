@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WaterUsageLogRepository extends JpaRepository<WaterUsageLog, Long> {
+
     boolean existsByHouseholdIdAndReadingDate(Long householdId, LocalDate date);
 
+    Optional<WaterUsageLog> findTopByHouseholdIdOrderByReadingDateDesc(Long householdId);
 
     Optional<WaterUsageLog> findTopByHouseholdIdAndReadingDateLessThanOrderByReadingDateDesc(
             Long householdId, LocalDate date);

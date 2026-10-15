@@ -39,7 +39,6 @@ public class Household {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    // REMOVE jaan bujh ke nahi lagaya: household delete se usage history na udde
     @OneToMany(mappedBy = "household", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     private List<WaterUsageLog> usageLogs = new ArrayList<>();
 }
