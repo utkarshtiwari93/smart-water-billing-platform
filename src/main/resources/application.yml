@@ -10,7 +10,7 @@
     datasource:
       url: jdbc:mysql://localhost:3306/waterdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata
       username: root
-      password: UTKARSH@123
+      password: ${DB_PASSWORD:...}
 
     jpa:
       hibernate:
@@ -35,6 +35,3 @@
       email: admin@water.local
       password: ${ADMIN_PASSWORD:change-me}
 
-  logging:
-    level:
-      org.springframework.security: DEBUG
