@@ -58,4 +58,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> tooLarge(MaxUploadSizeExceededException e) {
         return build(HttpStatus.PAYLOAD_TOO_LARGE, "File too large (max 5MB)", null);
     }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiError> conflict(ConflictException e) {
+        return build(HttpStatus.CONFLICT, e.getMessage(), null);
+    }
 }
