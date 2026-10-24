@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.converter.HttpMessageNotReadableException;
+
+
 // exception/GlobalExceptionHandler.java
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -62,5 +65,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> conflict(ConflictException e) {
         return build(HttpStatus.CONFLICT, e.getMessage(), null);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException e) {
+        return build(HttpStatus.BAD_REQUEST, "Malformed JSON or invalid value in request body", null);
     }
 }
