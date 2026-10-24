@@ -1,6 +1,7 @@
 package com.infosys.Water_Usage_Monitoring.controller;
 
 import com.infosys.Water_Usage_Monitoring.dto.AuthResponse;
+import com.infosys.Water_Usage_Monitoring.dto.GoogleLoginRequest;
 import com.infosys.Water_Usage_Monitoring.dto.LoginRequest;
 import com.infosys.Water_Usage_Monitoring.dto.RegisterRequest;
 import com.infosys.Water_Usage_Monitoring.dto.UserResponse;
@@ -30,5 +31,10 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest r) {
         return authService.login(r);
+    }
+
+    @PostMapping("/google")
+    public AuthResponse google(@Valid @RequestBody GoogleLoginRequest r) {
+        return authService.googleLogin(r);
     }
 }

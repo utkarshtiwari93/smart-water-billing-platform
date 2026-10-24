@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,9 +31,16 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infosys.Water_Usage_Monitoring.dto.GoogleLoginRequest;
+import com.infosys.Water_Usage_Monitoring.exception.BadRequestException;
+import com.infosys.Water_Usage_Monitoring.security.GoogleTokenVerifier;
+
+import static org.junit.jupiter.api.Assertions.assertNull;
+
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
+    @Mock GoogleTokenVerifier googleTokenVerifier;
     @Mock UserRepository userRepo;
     @Mock HouseholdRepository householdRepo;
     @Mock ApartmentService apartmentService;
@@ -125,5 +133,61 @@ class AuthServiceTest {
 
         assertThrows(BadCredentialsException.class,
                 () -> authService.login(new LoginRequest("none@test.com", "whatever")));
+    }
+
+    @Test
+    void googleLogin_newUser_createsResidentWithoutPassword() {
+        when(googleTokenVerifier.verify("tok"))
+                .thenReturn(new GoogleTokenVerifier.GoogleUser("sub-1", "new@gmail.com", "New User"));
+        when(userRepo.findByGoogleSub("sub-1")).thenReturn(Optional.empty());
+        when(userRepo.findByEmail("new@gmail.com")).thenReturn(Optional.empty());
+        when(apartmentService.find(1L)).thenReturn(apartment(1L));
+        when(userRepo.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(jwtService.generateToken(any(User.class))).thenReturn("TOKEN");
+
+        AuthResponse r = authService.googleLogin(new GoogleLoginRequest("tok", 1L, null));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepo).save(captor.capture());
+        assertEquals(Role.RESIDENT, captor.getValue().getRole());
+        assertNull(captor.getValue().getPasswordHash());
+        assertEquals("sub-1", captor.getValue().getGoogleSub());
+        assertEquals("TOKEN", r.token());
+    }
+
+    @Test
+    void googleLogin_existingEmail_linksGoogleAccount() {
+        User existing = storedUser();
+        when(googleTokenVerifier.verify("tok"))
+                .thenReturn(new GoogleTokenVerifier.GoogleUser("sub-2", "ravi@test.com", "Ravi"));
+        when(userRepo.findByGoogleSub("sub-2")).thenReturn(Optional.empty());
+        when(userRepo.findByEmail("ravi@test.com")).thenReturn(Optional.of(existing));
+        when(jwtService.generateToken(existing)).thenReturn("TOKEN");
+
+        authService.googleLogin(new GoogleLoginRequest("tok", null, null));
+
+        assertEquals("sub-2", existing.getGoogleSub());
+        verify(userRepo, never()).save(any(User.class));
+    }
+
+    @Test
+    void googleLogin_newUserWithoutApartment_isRejected() {
+        when(googleTokenVerifier.verify("tok"))
+                .thenReturn(new GoogleTokenVerifier.GoogleUser("sub-3", "fresh@gmail.com", "Fresh"));
+        when(userRepo.findByGoogleSub("sub-3")).thenReturn(Optional.empty());
+        when(userRepo.findByEmail("fresh@gmail.com")).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class,
+                () -> authService.googleLogin(new GoogleLoginRequest("tok", null, null)));
+    }
+
+    @Test
+    void login_googleOnlyAccount_isRejected() {
+        User u = storedUser();
+        u.setPasswordHash(null);
+        when(userRepo.findByEmail("ravi@test.com")).thenReturn(Optional.of(u));
+
+        assertThrows(BadCredentialsException.class,
+                () -> authService.login(new LoginRequest("ravi@test.com", "anything")));
     }
 }

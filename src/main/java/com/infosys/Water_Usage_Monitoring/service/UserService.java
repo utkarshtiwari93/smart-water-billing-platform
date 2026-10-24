@@ -40,6 +40,8 @@ public class UserService {
     @Transactional
     public void changePassword(String email, ChangePasswordRequest r) {
         User u = findByEmail(email);
+        if (u.getPasswordHash() == null)
+            throw new BadRequestException("This account signs in with Google and has no password to change");
         if (!passwordEncoder.matches(r.currentPassword(), u.getPasswordHash()))
             throw new BadRequestException("Current password is incorrect");
         if (r.currentPassword().equals(r.newPassword()))

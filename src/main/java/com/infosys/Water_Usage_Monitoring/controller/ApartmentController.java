@@ -49,7 +49,6 @@ public class ApartmentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) { service.delete(id); }
 
-    // households is apartment ke andar
     @PostMapping("/{apartmentId}/households")
     @ResponseStatus(HttpStatus.CREATED)
     public HouseholdResponse addHousehold(@PathVariable Long apartmentId,
