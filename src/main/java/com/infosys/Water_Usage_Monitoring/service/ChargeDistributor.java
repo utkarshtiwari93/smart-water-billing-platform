@@ -59,7 +59,7 @@ public class ChargeDistributor {
                     weights.add(in.areaSqft().multiply(litresPerSqft));
                     bases.add(Basis.AREA_ESTIMATE);
                 } else {
-                    weights.add(avgLitres);              // area pata nahi: average household maan liya
+                    weights.add(avgLitres);
                     bases.add(Basis.AREA_ESTIMATE);
                 }
             }
