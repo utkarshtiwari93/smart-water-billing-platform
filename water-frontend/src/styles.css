@@ -168,7 +168,7 @@ input[type='file'] { border: 1px dashed #cdd8e0; background: #fafcfd; }
 input[type='checkbox'] { width: auto; }
 .check-row { display: flex; align-items: center; gap: 8px; }
 
-.btn { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
+.btn { white-space: nowrap; font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
 .btn:hover { text-decoration: none; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: var(--brand); color: #fff; }
@@ -207,3 +207,15 @@ input[type='checkbox'] { width: auto; }
   .content { padding: 0; max-width: none; }
   .invoice { border: none; box-shadow: none; padding: 0; }
 }
+
+/* ---------- alerts ---------- */
+.bell { margin-left: 16px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink); padding: 6px 12px; border: 1px solid #cdd8e0; border-radius: 999px; background: #fff; }
+.bell:hover { text-decoration: none; background: #f1f5f7; }
+.bell-badge { background: var(--danger); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+.badge-red { background: #fde2df; color: #9c2a1e; }
+.notif { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 14px 12px; border-bottom: 1px solid var(--line); border-left: 4px solid transparent; }
+.notif:last-child { border-bottom: none; }
+.notif-unread { background: #fffaf3; border-left-color: var(--amber); }
+.notif-msg { margin: 6px 0 4px; }
+.switch-row { display: flex; align-items: flex-start; gap: 10px; }
+.switch-row input { margin-top: 3px; }

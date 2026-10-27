@@ -16,6 +16,7 @@ export default function Dashboard() {
       : Promise.resolve([])),
     [user.householdId, days]
   );
+  const alerts = useAsync(() => get('/api/v1/notifications?unreadOnly=true'), []);
   const invoices = useAsync(() => (user.householdId ? get('/api/v1/invoices/my') : Promise.resolve([])), [user.householdId]);
 
   if (!user.householdId) {
@@ -53,6 +54,12 @@ export default function Dashboard() {
       />
 
       <ErrorBox error={usage.error} />
+      {(alerts.data || []).slice(0, 2).map((a) => (
+        <Alert key={a.id} type="error">
+          <strong>{a.type === 'LEAK_SUSPECTED' ? 'Possible leak. ' : 'High usage. '}</strong>{a.message}{' '}
+          <Link to="/notifications">See all alerts</Link>
+        </Alert>
+      ))}
 
       <div className="stats">
         <Stat label={`Water used (${days} days)`} value={litres(total)} hint={`${rows.length} readings`} />

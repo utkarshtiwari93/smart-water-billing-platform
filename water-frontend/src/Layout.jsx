@@ -1,4 +1,6 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { get } from './api.js';
 import { useAuth } from './auth.jsx';
 import { AdminProvider, useAdmin } from './adminContext.jsx';
 
@@ -10,14 +12,41 @@ const ADMIN_NAV = [
   { to: '/admin/usage', label: 'Water usage' },
   { to: '/admin/tariffs', label: 'Tariff plans' },
   { to: '/admin/cycles', label: 'Billing cycles' },
+  { to: '/admin/alerts', label: 'Alert settings' },
+  { to: '/notifications', label: 'Alerts' },
   { to: '/profile', label: 'My profile' },
 ];
 
 const RESIDENT_NAV = [
   { to: '/dashboard', label: 'My usage', end: true },
   { to: '/my-invoices', label: 'My invoices' },
+  { to: '/notifications', label: 'Alerts' },
   { to: '/profile', label: 'My profile' },
 ];
+
+// Shows the number of unread alerts. Refreshes every 30 seconds and whenever the alerts page changes something.
+function Bell() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () => get('/api/v1/notifications/unread-count')
+      .then((r) => alive && setCount(r.unread))
+      .catch(() => {});
+    load();
+    const timer = setInterval(load, 30000);
+    window.addEventListener('notifications-changed', load);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      window.removeEventListener('notifications-changed', load);
+    };
+  }, []);
+  return (
+    <Link to="/notifications" className="bell" title="Alerts">
+      Alerts {count > 0 && <span className="bell-badge">{count}</span>}
+    </Link>
+  );
+}
 
 function ApartmentSelect() {
   const admin = useAdmin();
@@ -75,6 +104,7 @@ function Shell() {
       <div className="main">
         <header className="topbar">
           <ApartmentSelect />
+          <Bell />
         </header>
         <main className="content">
           <Outlet />

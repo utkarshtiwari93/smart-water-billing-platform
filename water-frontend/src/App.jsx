@@ -5,6 +5,7 @@ import { Spinner } from './ui.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Profile from './pages/Profile.jsx';
+import Notifications from './pages/Notifications.jsx';
 import InvoiceDetail from './pages/InvoiceDetail.jsx';
 import Dashboard from './pages/resident/Dashboard.jsx';
 import MyInvoices from './pages/resident/MyInvoices.jsx';
@@ -16,6 +17,7 @@ import Usage from './pages/admin/Usage.jsx';
 import Tariffs from './pages/admin/Tariffs.jsx';
 import Cycles from './pages/admin/Cycles.jsx';
 import CycleDetail from './pages/admin/CycleDetail.jsx';
+import AlertSettings from './pages/admin/AlertSettings.jsx';
 
 function Protected({ role, children }) {
   const { user, loading } = useAuth();
@@ -41,6 +43,7 @@ export default function App() {
 
       <Route element={<Protected><Layout /></Protected>}>
         <Route path="/profile" element={<Profile />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
 
         <Route path="/dashboard" element={<Protected role="RESIDENT"><Dashboard /></Protected>} />
@@ -53,6 +56,7 @@ export default function App() {
         <Route path="/admin/usage" element={<Protected role="ADMIN"><Usage /></Protected>} />
         <Route path="/admin/tariffs" element={<Protected role="ADMIN"><Tariffs /></Protected>} />
         <Route path="/admin/cycles" element={<Protected role="ADMIN"><Cycles /></Protected>} />
+        <Route path="/admin/alerts" element={<Protected role="ADMIN"><AlertSettings /></Protected>} />
         <Route path="/admin/cycles/:id" element={<Protected role="ADMIN"><CycleDetail /></Protected>} />
       </Route>
 

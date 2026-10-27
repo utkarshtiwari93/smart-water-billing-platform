@@ -33,6 +33,7 @@ First-time Google users are asked for their Apartment ID (the backend requires i
 **Resident**
 - My usage: consumption chart for 7/30/90 days, totals, latest meter reading, latest bill
 - My invoices, and a printable itemized invoice (Print / Save as PDF)
+- Alerts: leak and high-usage warnings (bell in the top bar shows the unread count, banner on the dashboard)
 - Profile: change name and password
 
 **Admin**
@@ -40,6 +41,8 @@ First-time Google users are asked for their Apartment ID (the backend requires i
 - Apartments, Households (with meter numbers), Residents (link a resident to a flat)
 - Water usage: readings chart and table, add a reading, bulk CSV upload with a row-by-row error report
 - Tariff plans (rate slabs)
+- Alert settings: usage limit, leak detection on/off, email on/off, and a "Run alert check" button
+- Alerts inbox (same page as residents, shows alerts for the whole apartment)
 - Billing cycles with tabs: bulk purchases, adjustments, cost distribution preview (chart),
   invoices; finalize and archive actions
 
