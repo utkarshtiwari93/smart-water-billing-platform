@@ -27,4 +27,9 @@ public interface WaterUsageLogRepository extends JpaRepository<WaterUsageLog, Lo
     BigDecimal sumConsumption(@Param("householdId") Long householdId,
                               @Param("from") LocalDate from,
                               @Param("to") LocalDate to);
+
+    List<WaterUsageLog> findTop500ByAlertCheckedFalseOrderByReadingDateAscIdAsc();
+
+    List<WaterUsageLog> findTop30ByHouseholdIdAndReadingDateLessThanAndConsumptionLitresGreaterThanOrderByReadingDateDesc(
+            Long householdId, LocalDate date, BigDecimal minConsumption);
 }

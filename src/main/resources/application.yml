@@ -1,6 +1,14 @@
 spring:
   application:
     name: water-billing
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: adm22000426@rmlau.ac.in
+    password: nrcp aguy bgut dbbh
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
 
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:waterdb}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata
@@ -33,3 +41,10 @@ app:
     password: ${ADMIN_PASSWORD}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
+  alerts:
+    scheduler-enabled: true
+    interval-ms: 900000
+    initial-delay-ms: 60000
+    mail-from: ${MAIL_FROM:no-reply@waterbilling.local}
+    alerts:
+      scheduler-enabled: false
