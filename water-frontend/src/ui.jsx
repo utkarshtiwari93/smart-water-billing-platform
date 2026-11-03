@@ -19,19 +19,37 @@ export function useAsync(fn, deps = []) {
 
 export function Alert({ type = 'error', children }) {
   if (!children) return null;
-  return <div className={`alert alert-${type}`}>{children}</div>;
+  return (
+    <div className={`alert alert-${type}`} role={type === 'error' ? 'alert' : 'status'}>
+      {children}
+    </div>
+  );
 }
 
 export function ErrorBox({ error }) {
-  return error ? <Alert>{errText(error)}</Alert> : null;
+  return error ? <Alert type="error">{errText(error)}</Alert> : null;
 }
 
 export function Spinner({ text = 'Loading...' }) {
-  return <div className="spinner">{text}</div>;
+  return (
+    <div className="spinner" role="status" aria-live="polite">
+      <span className="spinner-ring" aria-hidden="true" />
+      <span className="spinner-text">{text}</span>
+    </div>
+  );
 }
 
 export function Empty({ children }) {
-  return <div className="empty">{children}</div>;
+  return (
+    <div className="empty" role="status">
+      <span className="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 13V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7m16 0v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5m16 0h-4a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 0-2-2H4" />
+        </svg>
+      </span>
+      <span>{children}</span>
+    </div>
+  );
 }
 
 export function Card({ title, actions, children, className = '' }) {
@@ -40,7 +58,7 @@ export function Card({ title, actions, children, className = '' }) {
       {(title || actions) && (
         <div className="card-head">
           <h3>{title}</h3>
-          <div className="row gap">{actions}</div>
+          {actions && <div className="row gap">{actions}</div>}
         </div>
       )}
       {children}
@@ -55,15 +73,18 @@ export function PageHeader({ title, subtitle, actions }) {
         <h1>{title}</h1>
         {subtitle && <p className="muted">{subtitle}</p>}
       </div>
-      <div className="row gap">{actions}</div>
+      {actions && <div className="row gap page-head-actions">{actions}</div>}
     </div>
   );
 }
 
-export function Stat({ label, value, hint, tone }) {
+export function Stat({ label, value, hint, tone, icon }) {
   return (
     <div className={`stat ${tone ? `stat-${tone}` : ''}`}>
-      <div className="stat-label">{label}</div>
+      <div className="row between">
+        <div className="stat-label">{label}</div>
+        {icon && <span className="stat-icon" aria-hidden="true">{icon}</span>}
+      </div>
       <div className="stat-value">{value}</div>
       {hint && <div className="stat-hint">{hint}</div>}
     </div>
@@ -88,7 +109,11 @@ export function Modal({ title, onClose, children, footer }) {
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">x</button>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
@@ -139,12 +164,37 @@ export function FormModal({ title, onClose, onSubmit, submitLabel = 'Save', chil
   );
 }
 
+export function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onCancel}>
+      <div className="modal confirm-dialog" onMouseDown={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="modal-head">
+          <h3>Confirm action</h3>
+          <button className="icon-btn" onClick={onCancel} aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <p style={{ margin: 0, color: 'var(--ink-800)', lineHeight: 1.6 }}>{message}</p>
+          <div className="row gap end" style={{ marginTop: 22 }}>
+            <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn btn-danger" onClick={onConfirm}>Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Runs an async action (usually a DELETE or POST), confirming first.
 export function useAction(reload) {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
-  const run = async (fn, { confirm, success } = {}) => {
-    if (confirm && !window.confirm(confirm)) return;
+  const [pending, setPending] = useState(null);
+
+  const execute = async (fn, success) => {
     setError(null);
     setMessage(null);
     try {
@@ -155,7 +205,38 @@ export function useAction(reload) {
       setError(e);
     }
   };
-  return { run, error, message, clear: () => { setError(null); setMessage(null); } };
+
+  const run = async (fn, { confirm: confirmMsg, success } = {}) => {
+    if (confirmMsg) {
+      if (typeof window !== 'undefined' && window.confirm) {
+        if (!window.confirm(confirmMsg)) return;
+        return execute(fn, success);
+      }
+      setPending({ fn, success, confirmMsg });
+      return;
+    }
+    return execute(fn, success);
+  };
+
+  const dialog = pending ? (
+    <ConfirmDialog
+      message={pending.confirmMsg}
+      onConfirm={async () => {
+        const item = pending;
+        setPending(null);
+        await execute(item.fn, item.success);
+      }}
+      onCancel={() => setPending(null)}
+    />
+  ) : null;
+
+  return {
+    run,
+    error,
+    message,
+    clear: () => { setError(null); setMessage(null); },
+    dialog,
+  };
 }
 
 export function Tabs({ tabs, active, onChange }) {

@@ -131,6 +131,7 @@ function PurchasesTab({ cycle }) {
   return (
     <>
       <ErrorBox error={list.error || act.error} />
+      {act.dialog}
       <div className="stats">
         <Stat label="Purchases" value={s ? s.purchaseCount : '-'} />
         <Stat label="Total volume" value={s ? `${number(s.totalVolumeKl)} kL` : '-'} />
@@ -171,7 +172,7 @@ function PurchasesTab({ cycle }) {
             </table>
           </div>
         )}
-        {!open && <p className="muted small">Purchases are locked because this cycle is {cycle.status.toLowerCase()}.</p>}
+        {!open && <p className="muted small" style={{ marginTop: 12 }}>Purchases are locked because this cycle is {cycle.status.toLowerCase()}.</p>}
       </Card>
       {modal && <PurchaseForm cycle={cycle} initial={modal.item} onClose={(saved) => { setModal(null); if (saved) reload(); }} />}
     </>
@@ -214,13 +215,14 @@ function AdjustmentsTab({ cycle }) {
   return (
     <>
       <ErrorBox error={list.error || act.error} />
+      {act.dialog}
       <Card
         title="Adjustments"
         actions={open && <button className="btn btn-primary btn-sm" disabled={!households.data?.length} onClick={() => setAdding(true)}>Add adjustment</button>}
       >
-        <p className="muted small">Manual charges or credits that appear as a separate line on the household's invoice.</p>
+        <p className="muted small" style={{ marginBottom: 14 }}>Manual charges or credits that appear as an itemized line on the household's invoice.</p>
         {list.loading ? <Spinner /> : !list.data || list.data.length === 0 ? (
-          <Empty>No adjustments.</Empty>
+          <Empty>No adjustments recorded.</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -273,9 +275,8 @@ function DistributionTab({ cycle }) {
 
   return (
     <>
-      <p className="muted small">
-        Preview of how the purchase cost is shared. Water charge comes from the tariff slabs. The remaining cost
-        (common areas and losses) is split by consumption, or by flat area for flats without a meter.
+      <p className="muted small" style={{ marginBottom: 14 }}>
+        Preview of how purchase cost is allocated across households. Water consumption reflects tariff slab rates. Remaining common utility cost is shared equitably.
       </p>
       <Alert type="info">{data.note}</Alert>
       <div className="stats">
@@ -290,14 +291,23 @@ function DistributionTab({ cycle }) {
           <>
             <div className="chart">
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={chart}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="flat" fontSize={12} />
-                  <YAxis fontSize={12} />
-                  <Tooltip formatter={(v) => money(v)} />
-                  <Legend />
-                  <Bar dataKey="Water" stackId="a" fill="#0f8f8f" isAnimationActive={false} />
-                  <Bar dataKey="Shared" stackId="a" fill="#f29e4c" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <BarChart data={chart} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="flat" fontSize={11} stroke="#94a3b8" tickLine={false} />
+                  <YAxis fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+                      fontSize: '12px',
+                    }}
+                    formatter={(v) => money(v)}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                  <Bar dataKey="Water" stackId="a" fill="#0d9488" isAnimationActive={false} />
+                  <Bar dataKey="Shared" stackId="a" fill="#0284c7" radius={[4, 4, 0, 0]} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -333,7 +343,7 @@ function InvoicesTab({ cycle }) {
     () => (open ? Promise.resolve([]) : get(`/api/v1/billing-cycles/${cycle.id}/invoices`)),
     [cycle.id, cycle.status]
   );
-  if (open) return <Alert type="info">Invoices are created when you finalize this cycle.</Alert>;
+  if (open) return <Alert type="info">Invoices are automatically created and sent when this cycle is finalized.</Alert>;
   if (loading) return <Spinner />;
   const total = (data || []).reduce((s, i) => s + Number(i.totalAmount), 0);
 
@@ -341,7 +351,7 @@ function InvoicesTab({ cycle }) {
     <>
       <ErrorBox error={error} />
       <Card title={`Invoices (${(data || []).length})`} actions={<strong>{money(total)}</strong>}>
-        {!data || data.length === 0 ? <Empty>No invoices.</Empty> : (
+        {!data || data.length === 0 ? <Empty>No invoices found.</Empty> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Invoice</th><th>Flat</th><th className="num">Water used</th><th className="num">Total</th><th /></tr></thead>
@@ -383,7 +393,7 @@ export default function CycleDetail() {
     setTab('invoices');
     return r;
   }, {
-    confirm: 'Finalize this cycle? Invoices will be generated for every household and the cycle becomes read-only.',
+    confirm: 'Finalize this cycle? Invoices will be generated for every household and rates will be locked.',
     success: 'Cycle finalized and invoices generated.',
   });
 
@@ -397,10 +407,10 @@ export default function CycleDetail() {
   }, { confirm: 'Delete this cycle and its purchases and adjustments?' });
 
   return (
-    <>
+    <div className="cycle-detail-page">
       <PageHeader
         title={`${dateStr(c.startDate)} to ${dateStr(c.endDate)}`}
-        subtitle={`Billing cycle #${c.id} | ${c.tariffPlanName}`}
+        subtitle={`Billing cycle #${c.id} · ${c.tariffPlanName}`}
         actions={(
           <>
             <StatusBadge status={c.status} />
@@ -412,7 +422,8 @@ export default function CycleDetail() {
         )}
       />
       <ErrorBox error={act.error} />
-      <Alert type="success">{act.message}</Alert>
+      {act.message && <Alert type="success">{act.message}</Alert>}
+      {act.dialog}
 
       <Tabs
         active={tab}
@@ -431,6 +442,6 @@ export default function CycleDetail() {
       {tab === 'adjustments' && <AdjustmentsTab cycle={c} />}
       {tab === 'distribution' && <DistributionTab cycle={c} />}
       {tab === 'invoices' && <InvoicesTab cycle={c} />}
-    </>
+    </div>
   );
 }

@@ -48,29 +48,86 @@ export default function Tariffs() {
   const { apartmentId, apartment } = useAdmin();
   const list = useAsync(() => get(`/api/v1/apartments/${apartmentId}/tariffs`), [apartmentId]);
   const [modal, setModal] = useState(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const act = useAction(list.reload);
+  const tariffs = list.data || [];
+  const activeCount = tariffs.filter((tariff) => tariff.active).length;
+  const filteredTariffs = tariffs.filter((tariff) => (
+    tariff.name.toLowerCase().includes(query.trim().toLowerCase())
+    && (statusFilter === 'all' || (statusFilter === 'active' ? tariff.active : !tariff.active))
+  ));
 
   return (
-    <>
+    <div className="management-page">
       <PageHeader
         title="Tariff plans"
-        subtitle={apartment ? `Rate slabs for ${apartment.name}` : ''}
-        actions={<button className="btn btn-primary" onClick={() => setModal({})}>New plan</button>}
+        subtitle={apartment ? `Configure progressive water rates for ${apartment.name}.` : 'Configure progressive water rates for the apartment.'}
+        actions={<button className="btn btn-primary" onClick={() => setModal({})}><span aria-hidden="true">＋</span> New plan</button>}
       />
       <Alert type="info">
         Bill per household = (usage up to the limit x base rate) + (usage above the limit x higher rate).
         Rates are locked once a billing cycle using the plan is finalized.
       </Alert>
       <ErrorBox error={list.error || act.error} />
-      <Card>
-        {list.loading ? <Spinner /> : !list.data || list.data.length === 0 ? (
+      {act.dialog}
+      <div className="management-summary-row">
+        <div className="management-summary-card">
+          <span className="management-summary-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 7h16M4 12h10M4 17h7" />
+              <circle cx="19" cy="17" r="2" />
+            </svg>
+          </span>
+          <span><small>TOTAL PLANS</small><strong>{list.loading ? '—' : tariffs.length}</strong></span>
+        </div>
+        <div className="management-summary-card">
+          <span className="management-summary-icon management-summary-icon-blue">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </span>
+          <span><small>ACTIVE PLANS</small><strong>{list.loading ? '—' : activeCount}</strong></span>
+        </div>
+        <div className="management-summary-card">
+          <span className="management-summary-icon management-summary-icon-gold">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
+          </span>
+          <span><small>INACTIVE PLANS</small><strong>{list.loading ? '—' : tariffs.length - activeCount}</strong></span>
+        </div>
+      </div>
+      <Card title="Rate plans" actions={<span className="management-result-count">{filteredTariffs.length} {filteredTariffs.length === 1 ? 'plan' : 'plans'}</span>}>
+        <div className="management-toolbar">
+          <label className="management-search">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tariff plans" aria-label="Search tariff plans" />
+          </label>
+          <label className="management-filter">
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter tariff plans">
+              <option value="all">All plans</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </div>
+        {list.loading ? <Spinner /> : tariffs.length === 0 ? (
           <Empty>No tariff plan yet. Create one before opening a billing cycle.</Empty>
-        ) : (
+        ) : filteredTariffs.length === 0 ? <Empty>No plans match your search or filter.</Empty> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Name</th><th className="num">Limit (kL)</th><th className="num">Base rate</th><th className="num">Higher rate</th><th>Effective from</th><th>Status</th><th /></tr></thead>
               <tbody>
-                {list.data.map((t) => (
+                {filteredTariffs.map((t) => (
                   <tr key={t.id}>
                     <td><strong>{t.name}</strong></td>
                     <td className="num">{number(t.tier1LimitKl)}</td>
@@ -98,6 +155,6 @@ export default function Tariffs() {
         <TariffForm apartmentId={apartmentId} initial={modal.item}
           onClose={(saved) => { setModal(null); if (saved) list.reload(); }} />
       )}
-    </>
+    </div>
   );
 }

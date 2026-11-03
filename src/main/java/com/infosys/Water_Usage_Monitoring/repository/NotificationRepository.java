@@ -15,6 +15,20 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findByUserIdAndReadFlagFalseOrderByCreatedAtDesc(Long userId);
 
+    List<Notification> findTop21ByUserIdAndTypeInOrderByCreatedAtDescIdDesc(
+            Long userId, List<NotificationType> types);
+
+    @Query("""
+            select n from Notification n
+            where n.household.apartment.id = :apartmentId
+              and n.type in :types
+            order by n.createdAt desc, n.id desc
+            """)
+    List<Notification> findLatestApartmentAlerts(
+            @Param("apartmentId") Long apartmentId,
+            @Param("types") List<NotificationType> types,
+            org.springframework.data.domain.Pageable pageable);
+
     long countByUserIdAndReadFlagFalse(Long userId);
 
     boolean existsByUsageLogIdAndTypeAndUserId(Long usageLogId, NotificationType type, Long userId);

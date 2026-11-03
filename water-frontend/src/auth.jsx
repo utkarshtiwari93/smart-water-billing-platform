@@ -28,7 +28,13 @@ export function AuthProvider({ children }) {
 
   const acceptToken = useCallback(async (res) => {
     tokenStore.set(res.token);
-    return loadMe();
+    try {
+      return await loadMe();
+    } catch (error) {
+      tokenStore.clear();
+      setUser(null);
+      throw error;
+    }
   }, [loadMe]);
 
   const login = useCallback(async (email, password) => {

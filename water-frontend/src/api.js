@@ -8,10 +8,11 @@ export const tokenStore = {
 };
 
 export class ApiError extends Error {
-  constructor(status, message, fieldErrors) {
+  constructor(status, message, fieldErrors, code = null) {
     super(message);
     this.status = status;
     this.fieldErrors = fieldErrors || null;
+    this.code = code;
   }
 }
 
@@ -57,7 +58,12 @@ export async function api(path, { method = 'GET', body, form, auth = true } = {}
     if (res.status === 401 && auth && token) onUnauthorized();
     const fallback = res.status === 401 ? 'Please sign in again' :
       res.status === 403 ? 'You do not have permission to do this' : `Request failed (${res.status})`;
-    throw new ApiError(res.status, (data && data.message) || fallback, data && data.fieldErrors);
+    throw new ApiError(
+      res.status,
+      (data && data.message) || fallback,
+      data && data.fieldErrors,
+      data && data.code
+    );
   }
   return data;
 }

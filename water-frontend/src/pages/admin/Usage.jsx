@@ -22,7 +22,7 @@ function ReadingForm({ householdId, lastReading, onClose }) {
       </Field>
       <Field
         label="Meter reading (litres)"
-        hint={lastReading ? `Last reading: ${number(lastReading.meterReading)} on ${dateStr(lastReading.readingDate)}. Meters only go up. The first reading is a baseline.` : 'The first reading is a baseline (consumption 0).'}
+        hint={lastReading ? `Last reading: ${number(lastReading.meterReading)} on ${dateStr(lastReading.readingDate)}. Meter values are monotonically increasing.` : 'The first reading serves as the initial baseline.'}
       >
         <input type="number" required min="0" step="0.01" value={f.meterReading} onChange={(e) => setF({ ...f, meterReading: e.target.value })} />
       </Field>
@@ -66,27 +66,26 @@ function CsvUpload({ households, onDone }) {
   };
 
   return (
-    <Card title="Bulk upload (CSV)" actions={<button className="btn btn-ghost btn-sm" onClick={sample}>Download sample</button>}>
-      <p className="muted small">
-        Columns: <code>meterNumber,readingDate,meterReading</code> (date as yyyy-MM-dd). Valid rows are saved,
-        invalid rows are listed below. Max 5 MB and 10,000 rows.
+    <Card title="Bulk import readings (CSV)" actions={<button className="btn btn-ghost btn-sm" onClick={sample}>Download CSV template</button>}>
+      <p className="muted small" style={{ marginBottom: 14 }}>
+        Required columns: <code>meterNumber,readingDate,meterReading</code> (format date as YYYY-MM-DD). Valid rows are recorded immediately.
       </p>
       <form className="row gap" onSubmit={upload}>
-        <input type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files[0] || null)} />
-        <button className="btn btn-primary" disabled={!file || busy}>{busy ? 'Uploading...' : 'Upload'}</button>
+        <input type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files[0] || null)} style={{ maxWidth: 360 }} />
+        <button className="btn btn-primary" disabled={!file || busy}>{busy ? 'Uploading...' : 'Upload & Process'}</button>
       </form>
       <ErrorBox error={error} />
       {result && (
         <div className="stack">
           <div className="stats stats-3">
-            <Stat label="Rows read" value={result.totalRows} />
-            <Stat label="Imported" value={result.imported} tone="good" />
-            <Stat label="Failed" value={result.failed} tone={result.failed ? 'bad' : undefined} />
+            <Stat label="Total rows read" value={result.totalRows} />
+            <Stat label="Successfully imported" value={result.imported} tone="good" />
+            <Stat label="Failed rows" value={result.failed} tone={result.failed ? 'bad' : undefined} />
           </div>
           {result.errors.length > 0 && (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>CSV row</th><th>Problem</th></tr></thead>
+                <thead><tr><th>Row #</th><th>Validation error</th></tr></thead>
                 <tbody>{result.errors.map((er, i) => <tr key={i}><td>{er.rowNumber}</td><td>{er.message}</td></tr>)}</tbody>
               </table>
             </div>
@@ -124,27 +123,27 @@ export default function Usage() {
   const current = list.find((h) => String(h.id) === String(hid));
 
   return (
-    <>
+    <div className="management-page usage-page">
       <PageHeader
         title="Water usage"
-        subtitle="Meter readings and daily consumption"
-        actions={<button className="btn btn-primary" disabled={!hid} onClick={() => setAdding(true)}>Add reading</button>}
+        subtitle="Review household meter logs, track volume over time, and import reading batches."
+        actions={<button className="btn btn-primary" disabled={!hid} onClick={() => setAdding(true)}><span aria-hidden="true">＋</span> Add reading</button>}
       />
       <ErrorBox error={households.error || usage.error} />
 
       {list.length === 0 ? (
-        <Alert type="info">Add households first, then you can record their meter readings.</Alert>
+        <Alert type="info">Add households first to record water meter readings.</Alert>
       ) : (
         <>
           <Card>
             <div className="filters">
               <Field label="Household">
-                <select value={hid} onChange={(e) => setHid(e.target.value)}>
+                <select value={hid} onChange={(e) => setHid(e.target.value)} aria-label="Select household">
                   {list.map((h) => <option key={h.id} value={h.id}>{h.flatNumber}{h.meterNumber ? ` (${h.meterNumber})` : ' (no meter)'}</option>)}
                 </select>
               </Field>
-              <Field label="From"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-              <Field label="To"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+              <Field label="From date"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+              <Field label="To date"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
             </div>
             {current && !current.meterNumber && (
               <Alert type="info">This flat has no meter number. Its share of shared cost is estimated from flat area.</Alert>
@@ -152,34 +151,71 @@ export default function Usage() {
           </Card>
 
           <div className="stats stats-3">
-            <Stat label="Total in range" value={litres(total)} />
-            <Stat label="Readings" value={rows.length} />
-            <Stat label="Average per reading" value={rows.length ? litres(total / rows.length) : '-'} />
+            <Stat
+              label="Total volume in range"
+              value={litres(total)}
+              hint={current ? `Flat ${current.flatNumber}` : ''}
+              icon={(
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--brand)' }}>
+                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                </svg>
+              )}
+            />
+            <Stat
+              label="Meter readings recorded"
+              value={rows.length}
+              hint={`${dateStr(from)} – ${dateStr(to)}`}
+              icon={(
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--info)' }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              )}
+            />
+            <Stat
+              label="Average consumption"
+              value={rows.length ? litres(total / rows.length) : '-'}
+              hint="Per meter reading interval"
+              icon={(
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--warning)' }}>
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+              )}
+            />
           </div>
 
-          <Card title="Consumption">
-            {usage.loading ? <Spinner /> : rows.length === 0 ? <Empty>No readings in this range.</Empty> : (
+          <Card title="Consumption profile">
+            {usage.loading ? <Spinner /> : rows.length === 0 ? <Empty>No readings in this date range.</Empty> : (
               <>
                 <div className="chart">
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={chart}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="date" fontSize={12} />
-                      <YAxis fontSize={12} />
-                      <Tooltip formatter={(v) => [`${number(v)} L`, 'Consumption']} />
-                      <Bar dataKey="litres" fill="#0f8f8f" radius={[4, 4, 0, 0]} />
+                    <BarChart data={chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="date" fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+                      <YAxis fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+                          fontSize: '12px',
+                        }}
+                        formatter={(v) => [`${number(v)} L`, 'Consumption']}
+                      />
+                      <Bar dataKey="litres" fill="#0d9488" radius={[5, 5, 0, 0]} maxBarSize={48} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="table-wrap">
                   <table className="table">
-                    <thead><tr><th>Date</th><th className="num">Meter reading</th><th className="num">Consumption</th><th>Source</th></tr></thead>
+                    <thead><tr><th>Reading date</th><th className="num">Meter reading</th><th className="num">Consumption</th><th>Source</th></tr></thead>
                     <tbody>
                       {[...rows].reverse().map((r) => (
                         <tr key={r.id}>
                           <td>{dateStr(r.readingDate)}</td>
                           <td className="num">{number(r.meterReading)}</td>
-                          <td className="num">{litres(r.consumptionLitres)}</td>
+                          <td className="num"><strong>{litres(r.consumptionLitres)}</strong></td>
                           <td><Badge tone={r.source === 'CSV' ? 'blue' : 'grey'}>{r.source}</Badge></td>
                         </tr>
                       ))}
@@ -201,6 +237,6 @@ export default function Usage() {
           onClose={(saved) => { setAdding(false); if (saved) usage.reload(); }}
         />
       )}
-    </>
+    </div>
   );
 }

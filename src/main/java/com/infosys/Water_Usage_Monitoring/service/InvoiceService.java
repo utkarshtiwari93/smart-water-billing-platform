@@ -21,6 +21,7 @@ import com.infosys.Water_Usage_Monitoring.exception.ResourceNotFoundException;
 import com.infosys.Water_Usage_Monitoring.repository.AdjustmentRepository;
 import com.infosys.Water_Usage_Monitoring.repository.HouseholdRepository;
 import com.infosys.Water_Usage_Monitoring.repository.InvoiceRepository;
+import com.infosys.Water_Usage_Monitoring.repository.InvoiceCycleTotals;
 import com.infosys.Water_Usage_Monitoring.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -124,6 +125,13 @@ public class InvoiceService {
     }
 
     @Transactional(readOnly = true)
+    public CycleSummary summarizeForCycle(Long cycleId) {
+        cycleService.find(cycleId);
+        InvoiceCycleTotals totals = invoiceRepo.summarizeByBillingCycleId(cycleId);
+        return new CycleSummary(totals.getInvoiceCount(), totals.getInvoiceTotal());
+    }
+
+    @Transactional(readOnly = true)
     public InvoiceResponse get(Long id, String email) {
         Invoice invoice = invoiceRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + id));
@@ -181,5 +189,8 @@ public class InvoiceService {
                 inv.getBillingCycle().getStartDate(), inv.getBillingCycle().getEndDate(),
                 inv.getHousehold().getId(), inv.getHousehold().getFlatNumber(),
                 inv.getConsumptionLitres(), inv.getTotalAmount(), inv.getIssuedAt(), items);
+    }
+
+    public record CycleSummary(long invoiceCount, BigDecimal invoiceTotal) {
     }
 }

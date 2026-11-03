@@ -23,18 +23,55 @@ function ApartmentForm({ initial, onClose }) {
 export default function Apartments() {
   const { apartments, reloadApartments, apartmentId, setApartmentId } = useAdmin();
   const [modal, setModal] = useState(null);
+  const [query, setQuery] = useState('');
   const act = useAction(reloadApartments);
+  const filteredApartments = apartments.filter((apartment) => (
+    [apartment.name, apartment.address, apartment.city, String(apartment.id)]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))
+  ));
 
   return (
-    <>
+    <div className="management-page">
       <PageHeader
         title="Apartments"
-        subtitle="Societies managed in this system"
-        actions={<button className="btn btn-primary" onClick={() => setModal({})}>Add apartment</button>}
+        subtitle="Manage apartment communities and choose which one to administer."
+        actions={<button className="btn btn-primary" onClick={() => setModal({})}><span aria-hidden="true">＋</span> Add apartment</button>}
       />
       <ErrorBox error={act.error} />
-      <Card>
-        {apartments.length === 0 ? <Empty>No apartments yet.</Empty> : (
+      {act.dialog}
+      <div className="management-summary-row">
+        <div className="management-summary-card">
+          <span className="management-summary-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 21h18M5 21V5l7-2v18m0-14h7v14M8 7h1m-1 4h1m-1 4h1m7-3h1m-1 4h1" />
+            </svg>
+          </span>
+          <span><small>REGISTERED APARTMENTS</small><strong>{apartments.length}</strong></span>
+        </div>
+        <div className="management-summary-card">
+          <span className="management-summary-icon management-summary-icon-blue">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </span>
+          <span><small>ACTIVE WORKSPACE</small><strong>{apartments.find((item) => item.id === apartmentId)?.name || 'Not selected'}</strong></span>
+        </div>
+      </div>
+      <Card title="Apartment directory" actions={<span className="management-result-count">{filteredApartments.length} {filteredApartments.length === 1 ? 'result' : 'results'}</span>}>
+        <div className="management-toolbar">
+          <label className="management-search">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, address, city or ID" aria-label="Search apartments" />
+          </label>
+        </div>
+        {apartments.length === 0 ? <Empty>No apartments yet. Add your first community to get started.</Empty> : filteredApartments.length === 0 ? <Empty>No apartments match your search.</Empty> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>ID</th><th>Name</th><th>Address</th><th>City</th><th /></tr></thead>
@@ -69,6 +106,6 @@ export default function Apartments() {
       {modal && (
         <ApartmentForm initial={modal.item} onClose={(saved) => { setModal(null); if (saved) reloadApartments(); }} />
       )}
-    </>
+    </div>
   );
 }

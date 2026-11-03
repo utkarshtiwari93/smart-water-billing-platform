@@ -238,4 +238,3 @@ Schema is managed only by Flyway; Hibernate runs with `ddl-auto: validate`.
 ## Team
 
 - Utkarsh Tiwari
-- _Add teammate names_
