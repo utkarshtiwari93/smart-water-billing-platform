@@ -31,3 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
+### Environment Variables ###
+.env
+.env.*
+!.env.example
+
+### Frontend ###
+node_modules/
+water-frontend/node_modules/
+water-frontend/dist/
+
+### Logs ###
+*.log
+logs/
