@@ -16,12 +16,16 @@ import com.infosys.Water_Usage_Monitoring.repository.HouseholdRepository;
 import com.infosys.Water_Usage_Monitoring.repository.UserRepository;
 import com.infosys.Water_Usage_Monitoring.security.GoogleTokenVerifier;
 import com.infosys.Water_Usage_Monitoring.security.JwtService;
+import com.infosys.Water_Usage_Monitoring.entity.AuthChallenge;
+import com.infosys.Water_Usage_Monitoring.entity.AuthChallenge.Purpose;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -33,15 +37,27 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final VerificationCodeService verificationCodeService;
 
-    @Transactional
+    public void sendRegistrationCode(String rawEmail) {
+        String email = normalizeEmail(rawEmail);
+        // Keep the same generic response as forgot-password: do not reveal whether the email exists.
+        if (userRepository.existsByEmail(email)) {
+            log.info("Registration code skipped because email is already registered: {}", email);
+            return;
+        }
+        verificationCodeService.sendCode(email, Purpose.REGISTRATION);
+    }
+
+    @Transactional(noRollbackFor = BadRequestException.class)
     public UserResponse register(RegisterRequest r) {
-        String email = r.email().trim().toLowerCase();
+        String email = normalizeEmail(r.email());
         if (userRepository.existsByEmail(email))
             throw new DuplicateResourceException("Email already registered: " + email);
 
         Apartment apartment = apartmentService.find(r.apartmentId());
         Household household = resolveHousehold(r.apartmentId(), r.householdId());
+        verificationCodeService.consumeCode(email, Purpose.REGISTRATION, r.verificationCode());
 
         User u = new User();
         u.setName(r.name());
@@ -51,6 +67,33 @@ public class AuthService {
         u.setApartment(apartment);
         u.setHousehold(household);
         return userService.toResponse(userRepository.save(u));
+    }
+
+    public void requestPasswordReset(String rawEmail) {
+        String email = normalizeEmail(rawEmail);
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || user.getPasswordHash() == null) {
+            log.info("Password reset code skipped (no password account) for {}", email);
+            return;
+        }
+        verificationCodeService.sendCode(email, Purpose.PASSWORD_RESET);
+    }
+
+    @Transactional(noRollbackFor = BadRequestException.class)
+    public String verifyPasswordResetCode(String rawEmail, String code) {
+        return verificationCodeService.verifyResetCode(normalizeEmail(rawEmail), code);
+    }
+
+    @Transactional
+    public void resetPassword(String rawEmail, String resetToken, String newPassword) {
+        String email = normalizeEmail(rawEmail);
+        AuthChallenge challenge = verificationCodeService.consumeResetToken(email, resetToken);
+        User user = userRepository.findByEmail(email)
+                .filter(existing -> existing.getPasswordHash() != null)
+                .orElseThrow(() -> new BadRequestException("Invalid or expired password reset request"));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        verificationCodeService.delete(challenge);
     }
 
     @Transactional(readOnly = true)
@@ -113,5 +156,9 @@ public class AuthService {
     private AuthResponse toAuthResponse(User u) {
         return new AuthResponse(jwtService.generateToken(u), "Bearer",
                 u.getId(), u.getName(), u.getEmail(), u.getRole().name());
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 }

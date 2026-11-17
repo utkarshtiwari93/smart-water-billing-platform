@@ -1,10 +1,17 @@
 package com.infosys.Water_Usage_Monitoring.controller;
 
 import com.infosys.Water_Usage_Monitoring.dto.CsvImportResult;
+import com.infosys.Water_Usage_Monitoring.dto.ApartmentUsageResponse;
+import com.infosys.Water_Usage_Monitoring.dto.ResidentBenchmarkResponse;
 import com.infosys.Water_Usage_Monitoring.dto.UsageRequest;
 import com.infosys.Water_Usage_Monitoring.dto.UsageResponse;
+import com.infosys.Water_Usage_Monitoring.dto.UsageTrendResponse;
+import com.infosys.Water_Usage_Monitoring.dto.UsagePeriodComparisonResponse;
+import com.infosys.Water_Usage_Monitoring.exception.BadRequestException;
+import com.infosys.Water_Usage_Monitoring.service.ConsumptionAggregationService;
 import com.infosys.Water_Usage_Monitoring.service.CsvImportService;
 import com.infosys.Water_Usage_Monitoring.service.UsageService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,18 +38,21 @@ public class UsageController {
 
     private final UsageService usageService;
     private final CsvImportService csvImportService;
+    private final AdminApartmentScope apartmentScope;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public UsageResponse create(@Valid @RequestBody UsageRequest r) {
+    public UsageResponse create(@Valid @RequestBody UsageRequest r, Authentication authentication) {
+        apartmentScope.household(r.householdId(), authentication.getName());
         return usageService.createManual(r);
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
-    public CsvImportResult upload(@RequestParam("file") MultipartFile file) {
-        return csvImportService.importUsage(file);
+    public CsvImportResult upload(@RequestParam("file") MultipartFile file, Authentication authentication) {
+        Long apartmentId = apartmentScope.assignedApartmentId(authentication.getName());
+        return csvImportService.importUsage(file, apartmentId);
     }
 
     @GetMapping
@@ -51,6 +61,53 @@ public class UsageController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Authentication authentication) {
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            apartmentScope.household(householdId, authentication.getName());
+        }
         return usageService.list(householdId, from, to, authentication.getName());
+    }
+
+    @GetMapping("/apartment")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApartmentUsageResponse apartmentUsage(
+            @RequestParam Long apartmentId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication authentication) {
+        return usageService.apartmentUsage(apartmentId, from, to, authentication.getName());
+    }
+
+    @GetMapping("/trend")
+    public UsageTrendResponse trend(
+            @RequestParam Long householdId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") String granularity,
+            Authentication authentication) {
+        ConsumptionAggregationService.Granularity parsed;
+        try {
+            parsed = ConsumptionAggregationService.Granularity.valueOf(granularity.toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new BadRequestException("granularity must be DAY or MONTH");
+        }
+        return usageService.trend(householdId, from, to, parsed, authentication.getName());
+    }
+
+    @GetMapping("/compare")
+    public UsagePeriodComparisonResponse compare(
+            @RequestParam Long householdId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication authentication) {
+        return usageService.compare(householdId, from, to, authentication.getName());
+    }
+
+    @GetMapping("/benchmark")
+    @PreAuthorize("hasRole('RESIDENT')")
+    public ResidentBenchmarkResponse benchmark(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication authentication) {
+        return usageService.benchmark(from, to, authentication.getName());
     }
 }

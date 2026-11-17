@@ -5,6 +5,7 @@ import com.infosys.Water_Usage_Monitoring.dto.ChangePasswordRequest;
 import com.infosys.Water_Usage_Monitoring.dto.UpdateProfileRequest;
 import com.infosys.Water_Usage_Monitoring.dto.UserResponse;
 import com.infosys.Water_Usage_Monitoring.service.UserService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final AdminApartmentScope apartmentScope;
 
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
@@ -47,19 +49,25 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public List<UserResponse> list(@RequestParam(required = false) Long apartmentId) {
-        return userService.listUsers(apartmentId);
+    public List<UserResponse> list(@RequestParam(required = false) Long apartmentId, Authentication authentication) {
+        Long assignedApartmentId = apartmentScope.assignedApartmentId(authentication.getName());
+        if (apartmentId != null) apartmentScope.apartment(apartmentId, authentication.getName());
+        return userService.listUsers(apartmentId == null ? assignedApartmentId : apartmentId);
     }
 
     @PutMapping("/{userId}/household")
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse assign(@PathVariable Long userId, @Valid @RequestBody AssignHouseholdRequest r) {
+    public UserResponse assign(@PathVariable Long userId, @Valid @RequestBody AssignHouseholdRequest r,
+                               Authentication authentication) {
+        apartmentScope.user(userId, authentication.getName());
+        apartmentScope.household(r.householdId(), authentication.getName());
         return userService.assignHousehold(userId, r.householdId());
     }
 
     @DeleteMapping("/{userId}/household")
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse unassign(@PathVariable Long userId) {
+    public UserResponse unassign(@PathVariable Long userId, Authentication authentication) {
+        apartmentScope.user(userId, authentication.getName());
         return userService.unassignHousehold(userId);
     }
 }

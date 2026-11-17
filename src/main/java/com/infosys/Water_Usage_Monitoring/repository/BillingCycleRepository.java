@@ -20,6 +20,9 @@ public interface BillingCycleRepository extends JpaRepository<BillingCycle, Long
 
     List<BillingCycle> findByApartmentIdAndStatusOrderByStartDateDesc(Long apartmentId, CycleStatus status);
 
+    List<BillingCycle> findByApartmentIdAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByStartDateDesc(
+            Long apartmentId, LocalDate date, LocalDate sameDate);
+
     boolean existsByTariffPlanId(Long tariffPlanId);
 
     boolean existsByTariffPlanIdAndStatusIn(Long tariffPlanId, Collection<CycleStatus> statuses);

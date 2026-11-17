@@ -1,6 +1,7 @@
 package com.infosys.Water_Usage_Monitoring.service;
 
 import com.infosys.Water_Usage_Monitoring.dto.BillPreviewResponse;
+import com.infosys.Water_Usage_Monitoring.dto.TariffSlabChargeResponse;
 import com.infosys.Water_Usage_Monitoring.entity.BillingCycle;
 import com.infosys.Water_Usage_Monitoring.entity.Household;
 import com.infosys.Water_Usage_Monitoring.entity.TariffPlan;
@@ -77,6 +78,8 @@ public class BillingPreviewService {
                 cycle.getStartDate(), cycle.getEndDate(),
                 litres, c.consumptionKl(),
                 plan.getTier1LimitKl(), plan.getBaseRate(), plan.getHigherRate(),
-                c.tier1Kl(), c.tier2Kl(), c.tier1Charge(), c.tier2Charge(), c.total());
+                c.tier1Kl(), c.tier2Kl(), c.tier1Charge(), c.tier2Charge(), c.total(),
+                c.slabs().stream().map(s -> new TariffSlabChargeResponse(s.slabNumber(), s.fromKl(),
+                        s.upToKl(), s.consumptionKl(), s.rate(), s.amount())).toList());
     }
 }

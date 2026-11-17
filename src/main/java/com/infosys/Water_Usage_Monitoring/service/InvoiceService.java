@@ -4,8 +4,10 @@ import com.infosys.Water_Usage_Monitoring.dto.DistributionResponse;
 import com.infosys.Water_Usage_Monitoring.dto.FinalizeResponse;
 import com.infosys.Water_Usage_Monitoring.dto.HouseholdShareResponse;
 import com.infosys.Water_Usage_Monitoring.dto.InvoiceItemResponse;
+import com.infosys.Water_Usage_Monitoring.dto.InvoicePdfData;
 import com.infosys.Water_Usage_Monitoring.dto.InvoiceResponse;
 import com.infosys.Water_Usage_Monitoring.entity.Adjustment;
+import com.infosys.Water_Usage_Monitoring.entity.AlertSettings;
 import com.infosys.Water_Usage_Monitoring.entity.BillingCycle;
 import com.infosys.Water_Usage_Monitoring.entity.Household;
 import com.infosys.Water_Usage_Monitoring.entity.Invoice;
@@ -23,8 +25,10 @@ import com.infosys.Water_Usage_Monitoring.repository.HouseholdRepository;
 import com.infosys.Water_Usage_Monitoring.repository.InvoiceRepository;
 import com.infosys.Water_Usage_Monitoring.repository.InvoiceCycleTotals;
 import com.infosys.Water_Usage_Monitoring.repository.UserRepository;
+import com.infosys.Water_Usage_Monitoring.repository.WaterUsageLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +49,11 @@ public class InvoiceService {
     private final AdjustmentRepository adjustmentRepo;
     private final InvoiceRepository invoiceRepo;
     private final UserRepository userRepo;
+    private final WaterUsageLogRepository usageRepo;
+    private final AlertSettingsService alertSettingsService;
+    private final AlertMailer mailer;
+    @Value("${app.billing.payment-instructions:Please pay through the payment channel configured by your apartment administrator.}")
+    private String paymentInstructions;
 
     @Transactional
     public FinalizeResponse finalizeCycle(Long cycleId) {
@@ -74,17 +83,13 @@ public class InvoiceService {
             invoice.setConsumptionLitres(share.consumptionLitres());
 
             TariffCalculator.Charge charge = calculator.calculate(share.consumptionLitres(), plan);
-            String limit = plan.getTier1LimitKl().stripTrailingZeros().toPlainString();
-
-            if (charge.tier1Kl().signum() > 0)
-                invoice.addItem(item(InvoiceItemType.WATER_TIER1,
-                        "Water charge - tier 1 (up to " + limit + " kL)",
-                        charge.tier1Kl(), plan.getBaseRate(), charge.tier1Charge()));
-
-            if (charge.tier2Kl().signum() > 0)
-                invoice.addItem(item(InvoiceItemType.WATER_TIER2,
-                        "Water charge - tier 2 (above " + limit + " kL)",
-                        charge.tier2Kl(), plan.getHigherRate(), charge.tier2Charge()));
+            for (TariffCalculator.SlabCharge slab : charge.slabs()) {
+                if (slab.consumptionKl().signum() == 0) continue;
+                InvoiceItemType itemType = slab.slabNumber() == 1
+                        ? InvoiceItemType.WATER_TIER1 : InvoiceItemType.WATER_TIER2;
+                invoice.addItem(item(itemType, slabDescription(slab), slab.consumptionKl(),
+                        slab.rate(), slab.amount()));
+            }
 
             if (share.sharedAllocation().signum() > 0)
                 invoice.addItem(item(InvoiceItemType.SHARED_AREA,
@@ -99,6 +104,7 @@ public class InvoiceService {
             invoice.setTotalAmount(total);
 
             invoiceRepo.save(invoice);
+            sendInvoiceEmail(household, invoice);
             totalInvoiced = totalInvoiced.add(total);
         }
 
@@ -135,14 +141,39 @@ public class InvoiceService {
     public InvoiceResponse get(Long id, String email) {
         Invoice invoice = invoiceRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + id));
+        requireInvoiceAccess(invoice, email);
+        return toDto(invoice);
+    }
+
+    @Transactional(readOnly = true)
+    public InvoicePdfData getPdfData(Long id, String email) {
+        Invoice invoice = invoiceRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + id));
+        requireInvoiceAccess(invoice, email);
+
+        BillingCycle cycle = invoice.getBillingCycle();
+        Household household = invoice.getHousehold();
+        Long householdId = household.getId();
+        var previous = usageRepo.findTopByHouseholdIdAndReadingDateLessThanOrderByReadingDateDesc(
+                householdId, cycle.getStartDate());
+        var current = usageRepo.findTopByHouseholdIdAndReadingDateBetweenOrderByReadingDateDesc(
+                householdId, cycle.getStartDate(), cycle.getEndDate());
+        var apartment = household.getApartment();
+        return new InvoicePdfData(toDto(invoice), apartment.getName(), apartment.getAddress(), apartment.getCity(),
+                household.getMeterNumber(),
+                previous.map(log -> log.getReadingDate()).orElse(null),
+                previous.map(log -> log.getMeterReading()).orElse(null),
+                current.map(log -> log.getReadingDate()).orElse(null),
+                current.map(log -> log.getMeterReading()).orElse(null));
+    }
+
+    private void requireInvoiceAccess(Invoice invoice, String email) {
         User user = findUser(email);
 
         if (user.getRole() == Role.RESIDENT
                 && (user.getHousehold() == null
                 || !user.getHousehold().getId().equals(invoice.getHousehold().getId())))
             throw new AccessDeniedException("You can only view your own household's invoices");
-
-        return toDto(invoice);
     }
 
     @Transactional(readOnly = true)
@@ -177,6 +208,30 @@ public class InvoiceService {
             case "AREA" -> "by flat area";
             default -> "equal split";
         };
+    }
+
+    private String slabDescription(TariffCalculator.SlabCharge slab) {
+        String from = slab.fromKl().stripTrailingZeros().toPlainString();
+        if (slab.upToKl() == null)
+            return slab.slabNumber() == 1
+                    ? "Water charge - slab " + slab.slabNumber() + " (all usage)"
+                    : "Water charge - slab " + slab.slabNumber() + " (above " + from + " kL)";
+        String to = slab.upToKl().stripTrailingZeros().toPlainString();
+        return "Water charge - slab " + slab.slabNumber() + " (" + from + " to " + to + " kL)";
+    }
+
+    private void sendInvoiceEmail(Household household, Invoice invoice) {
+        AlertSettings settings = alertSettingsService.getOrCreate(household.getApartment().getId());
+        if (settings == null || !settings.isEmailEnabled()) return;
+
+        for (User resident : userRepo.findByHouseholdId(household.getId())) {
+            if (resident.getRole() == Role.RESIDENT) {
+                mailer.sendHtml(resident.getEmail(), "Water bill " + invoice.getInvoiceNumber(),
+                        TransactionalEmailTemplates.invoice(household, invoice, paymentInstructions));
+                mailer.sendHtml(resident.getEmail(), "Water-saving tips for your billing period",
+                        TransactionalEmailTemplates.waterSavingTips(household, invoice));
+            }
+        }
     }
 
     private InvoiceResponse toDto(Invoice inv) {

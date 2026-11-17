@@ -2,6 +2,7 @@ package com.infosys.Water_Usage_Monitoring.controller;
 
 import com.infosys.Water_Usage_Monitoring.dto.BillPreviewResponse;
 import com.infosys.Water_Usage_Monitoring.service.BillingPreviewService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -19,17 +20,22 @@ import java.util.List;
 public class BillingPreviewController {
 
     private final BillingPreviewService service;
+    private final AdminApartmentScope apartmentScope;
 
     @GetMapping
     public BillPreviewResponse preview(@PathVariable Long cycleId,
                                        @RequestParam(required = false) Long householdId,
                                        Authentication authentication) {
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            apartmentScope.cycle(cycleId, authentication.getName());
+        }
         return service.preview(cycleId, householdId, authentication.getName());
     }
 
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<BillPreviewResponse> previewAll(@PathVariable Long cycleId) {
+    public List<BillPreviewResponse> previewAll(@PathVariable Long cycleId, Authentication authentication) {
+        apartmentScope.cycle(cycleId, authentication.getName());
         return service.previewAll(cycleId);
     }
 }

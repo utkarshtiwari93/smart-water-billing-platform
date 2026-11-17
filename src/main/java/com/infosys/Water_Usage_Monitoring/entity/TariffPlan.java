@@ -7,6 +7,8 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "tariff_plans")
@@ -39,4 +41,8 @@ public class TariffPlan {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @OneToMany(mappedBy = "tariffPlan", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("order ASC")
+    private List<TariffSlab> slabs = new ArrayList<>();
 }

@@ -2,7 +2,9 @@ package com.infosys.Water_Usage_Monitoring.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public record TariffPlanResponse(Long id, Long apartmentId, String name,
                                  BigDecimal tier1LimitKl, BigDecimal baseRate, BigDecimal higherRate,
-                                 LocalDate effectiveFrom, boolean active) {}
+                                 LocalDate effectiveFrom, boolean active, List<TariffSlabResponse> slabs) {
+}

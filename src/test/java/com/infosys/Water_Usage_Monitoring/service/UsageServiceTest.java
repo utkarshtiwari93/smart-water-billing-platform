@@ -3,6 +3,7 @@ package com.infosys.Water_Usage_Monitoring.service;
 import com.infosys.Water_Usage_Monitoring.dto.UsageRequest;
 import com.infosys.Water_Usage_Monitoring.dto.UsageResponse;
 import com.infosys.Water_Usage_Monitoring.entity.Household;
+import com.infosys.Water_Usage_Monitoring.entity.Apartment;
 import com.infosys.Water_Usage_Monitoring.entity.User;
 import com.infosys.Water_Usage_Monitoring.entity.WaterUsageLog;
 import com.infosys.Water_Usage_Monitoring.enums.ReadingSource;
@@ -24,6 +25,7 @@ import org.springframework.security.access.AccessDeniedException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +42,7 @@ class UsageServiceTest {
     @Mock WaterUsageLogRepository logRepo;
     @Mock HouseholdRepository householdRepo;
     @Mock UserRepository userRepo;
+    @Mock ConsumptionAggregationService aggregationService;
     @InjectMocks UsageService service;
 
     private Household household;
@@ -175,5 +178,116 @@ class UsageServiceTest {
 
         assertThrows(BadRequestException.class, () -> service.list(1L,
                 LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 1), "a@test.com"));
+    }
+
+    @Test
+    void benchmark_comparesResidentWithApartmentAndSimilarSizedHomes() {
+        Apartment apartment = new Apartment();
+        apartment.setId(7L);
+        Household own = new Household();
+        own.setId(1L);
+        own.setApartment(apartment);
+        own.setAreaSqft(new BigDecimal("1000"));
+        Household peer = new Household();
+        peer.setId(2L);
+        peer.setApartment(apartment);
+        peer.setAreaSqft(new BigDecimal("1150"));
+        User resident = user(Role.RESIDENT, 1L);
+        resident.setHousehold(own);
+
+        when(aggregationService.apartment(eq(7L), any(LocalDate.class), any(LocalDate.class),
+                eq(ConsumptionAggregationService.Granularity.DAY)))
+                .thenReturn(Map.of(
+                        1L, new ConsumptionAggregationService.Aggregate(
+                                new BigDecimal("100"), 30, LocalDate.of(2026, 10, 31), List.of()),
+                        2L, new ConsumptionAggregationService.Aggregate(
+                                new BigDecimal("300"), 30, LocalDate.of(2026, 10, 31), List.of())));
+        when(userRepo.findByEmail("r@test.com")).thenReturn(Optional.of(resident));
+        when(householdRepo.findByApartmentId(7L)).thenReturn(List.of(own, peer));
+
+        var result = service.benchmark(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), "r@test.com");
+
+        assertEquals(0, result.householdConsumptionLitres().compareTo(new BigDecimal("100")));
+        assertEquals(0, result.apartmentAverageLitres().compareTo(new BigDecimal("200.00")));
+        assertEquals(0, result.similarHouseholdAverageLitres().compareTo(new BigDecimal("300")));
+        assertEquals(1, result.similarHouseholdCount());
+        assertEquals(-50.0, result.householdVsApartmentPercent().doubleValue());
+        assertEquals(true, result.similarGroupAvailable());
+    }
+
+    @Test
+    void benchmarkExcludesHouseholdsWithoutValidReadingIntervals() {
+        Apartment apartment = new Apartment();
+        apartment.setId(7L);
+        Household own = new Household();
+        own.setId(1L);
+        own.setApartment(apartment);
+        own.setAreaSqft(new BigDecimal("1000"));
+        Household peer = new Household();
+        peer.setId(2L);
+        peer.setApartment(apartment);
+        peer.setAreaSqft(new BigDecimal("1000"));
+        User resident = user(Role.RESIDENT, 1L);
+        resident.setHousehold(own);
+
+        when(userRepo.findByEmail("r@test.com")).thenReturn(Optional.of(resident));
+        when(householdRepo.findByApartmentId(7L)).thenReturn(List.of(own, peer));
+        when(aggregationService.apartment(eq(7L), any(LocalDate.class), any(LocalDate.class),
+                eq(ConsumptionAggregationService.Granularity.DAY)))
+                .thenReturn(Map.of(2L, new ConsumptionAggregationService.Aggregate(
+                        new BigDecimal("20"), 10, LocalDate.of(2026, 10, 31), List.of())));
+
+        var result = service.benchmark(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), "r@test.com");
+
+        assertEquals(null, result.householdConsumptionLitres());
+        assertEquals(1, result.apartmentHouseholdCount());
+        assertEquals(0, result.apartmentAverageLitres().compareTo(new BigDecimal("20.00")));
+        assertEquals(false, result.similarGroupAvailable());
+    }
+
+    @Test
+    void trendRejectsAdminAccessToAnotherApartment() {
+        Apartment assignedApartment = new Apartment();
+        assignedApartment.setId(8L);
+        Apartment targetApartment = new Apartment();
+        targetApartment.setId(7L);
+        Household target = new Household();
+        target.setId(2L);
+        target.setApartment(targetApartment);
+        User admin = user(Role.ADMIN, null);
+        admin.setApartment(assignedApartment);
+        when(userRepo.findByEmail("a@test.com")).thenReturn(Optional.of(admin));
+        when(householdRepo.findById(2L)).thenReturn(Optional.of(target));
+
+        assertThrows(AccessDeniedException.class, () -> service.trend(2L,
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31),
+                ConsumptionAggregationService.Granularity.DAY, "a@test.com"));
+        verify(aggregationService, never()).household(any(), any(), any(), any());
+    }
+
+    @Test
+    void comparisonUsesEqualLengthPreviousPeriodAndReportsPercentageChange() {
+        Apartment apartment = new Apartment();
+        apartment.setId(7L);
+        Household own = new Household();
+        own.setId(1L);
+        own.setApartment(apartment);
+        User resident = user(Role.RESIDENT, 1L);
+        resident.setHousehold(own);
+        when(userRepo.findByEmail("r@test.com")).thenReturn(Optional.of(resident));
+        when(householdRepo.findById(1L)).thenReturn(Optional.of(own));
+        when(aggregationService.household(eq(1L), any(LocalDate.class), any(LocalDate.class),
+                eq(ConsumptionAggregationService.Granularity.DAY)))
+                .thenReturn(new ConsumptionAggregationService.Aggregate(
+                                new BigDecimal("120"), 30, LocalDate.of(2026, 11, 30), List.of()),
+                        new ConsumptionAggregationService.Aggregate(
+                                new BigDecimal("100"), 30, LocalDate.of(2026, 10, 31), List.of()));
+
+        var result = service.compare(1L, LocalDate.of(2026, 11, 1),
+                LocalDate.of(2026, 11, 30), "r@test.com");
+
+        assertEquals(LocalDate.of(2026, 10, 2), result.previousFrom());
+        assertEquals(LocalDate.of(2026, 10, 31), result.previousTo());
+        assertEquals(0, result.percentageDifference().compareTo(new BigDecimal("20.00")));
     }
 }

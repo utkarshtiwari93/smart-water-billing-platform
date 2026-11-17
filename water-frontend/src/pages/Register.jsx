@@ -8,11 +8,45 @@ import './Register.css';
 
 /**
  * AquaFlow resident registration page
- * -----------------------------------
- * UI refresh only: preserves the existing registration endpoint, request body,
- * authentication redirect, field constraints, and post-registration route.
- * All styles are scoped under .af-register to avoid changing other pages.
+ * ----------------------------------------------------------------------------
+ * Registration requires a verified email before an account is created:
+ *  - Same imports, same default export (Register) and same CSS file name.
+ *  - Send a code to the supplied email, then create the account with that code.
+ *  - Same field limits (name max 100, password 8 to 72, IDs are numbers >= 1).
+ *  - Same redirects: signed-in users go to portalPathFor(user); after a
+ *    successful sign-up the user goes to /login with { registered: true }.
+ *
+ * All styles live in Register.css and are scoped under .af-register, so no
+ * other page is affected. Colours and type match the rest of the app.
  */
+
+const BENEFITS = [
+  'Daily and monthly usage trends',
+  'Itemized invoices and PDF downloads',
+  'Alerts for high usage and possible leaks',
+  'Comparison with your apartment’s average',
+];
+
+const BEFORE_YOU_START = [
+  { title: 'Apartment ID (required)', text: 'A number from your society administrator that identifies your apartment.' },
+  { title: 'Household ID (optional)', text: 'Identifies your flat. If you don’t have it yet, leave it blank and ask your administrator to link you later.' },
+  { title: 'Email and password', text: 'A valid email address and a password of at least 8 characters.' },
+];
+
+const NEXT_STEPS = [
+  { title: 'Create your account', text: 'Fill in the form on this page.' },
+  { title: 'Sign in', text: 'You will be sent to the sign-in page with a confirmation message.' },
+  { title: 'Get linked to your household', text: 'If you didn’t enter a Household ID, your administrator links your account.' },
+  { title: 'Open your portal', text: 'See readings, trends, invoices and alerts for your home.' },
+];
+
+const HELP_ITEMS = [
+  { q: 'Where do I find my Apartment ID?', a: 'Ask your society administrator. It is the number that identifies your apartment in AquaFlow.' },
+  { q: 'I don’t know my Household ID', a: 'That’s fine. Leave it empty, finish registering, and ask your administrator to link your account to your household. Your readings and invoices appear once that is done.' },
+  { q: 'I already have an account', a: 'Use the Sign in link below the form. You can request a password reset code from the sign-in page.' },
+  { q: 'Is this for administrators too?', a: 'This page creates resident accounts. Administrator access is set up by your society.' },
+];
+
 function AquaDrop({ className = '' }) {
   const gradientId = useId();
   return (
@@ -41,48 +75,17 @@ function Brand({ mobile = false }) {
   );
 }
 
-function FeatureIcon({ name }) {
-  const icons = {
-    usage: <><path d="M4 20V12h4v8M10 20V7h4v13M16 20V3h4v17" /><path d="M2 20h20" /></>,
-    billing: <><path d="M6 3h9l5 5v13H6z" /><path d="M15 3v5h5M9 12h8M9 16h8" /></>,
-    shield: <><path d="M12 3 20 6v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-3Z" /><path d="m8.5 12 2.3 2.3 4.8-5" /></>,
+function Icon({ name }) {
+  const paths = {
+    user: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
+    mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
+    lock: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+    check: <path d="m5 12 4 4L19 6" />,
+    home: <><path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V21h13V9.5" /></>,
   };
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {icons[name]}
-    </svg>
-  );
-}
-
-function ApartmentIllustration() {
-  return (
-    <svg className="af-register__building" viewBox="0 0 520 430" fill="none" role="img" aria-label="Smart apartment connected to a water monitoring network">
-      <defs>
-        <linearGradient id="reg-building-front" x1="100" y1="80" x2="330" y2="390" gradientUnits="userSpaceOnUse"><stop stopColor="#F7FDFF"/><stop offset="1" stopColor="#8BC8E9"/></linearGradient>
-        <linearGradient id="reg-building-side" x1="320" y1="80" x2="460" y2="370" gradientUnits="userSpaceOnUse"><stop stopColor="#C7EDFF"/><stop offset="1" stopColor="#579BC8"/></linearGradient>
-        <linearGradient id="reg-glass" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#064B80"/><stop offset="1" stopColor="#20C4E9"/></linearGradient>
-        <filter id="reg-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      </defs>
-      <ellipse cx="260" cy="395" rx="210" ry="22" fill="#04D8F3" opacity=".22"/>
-      <path d="m82 105 205-76 157 58-204 79-158-61Z" fill="#E6F8FF" stroke="white" strokeWidth="4"/>
-      <path d="m82 105 158 61v210L82 318V105Z" fill="url(#reg-building-front)" stroke="#E9FAFF" strokeWidth="3"/>
-      <path d="m240 166 204-79v210l-204 79V166Z" fill="url(#reg-building-side)" stroke="#E9FAFF" strokeWidth="3"/>
-      {[0,1,2].map((floor) => {
-        const y = 165 + floor * 67;
-        return <g key={floor}>
-          <path d={`M82 ${y+2} 240 ${y+63} 444 ${y-16}`} stroke="white" strokeWidth="7"/>
-          <path d={`M99 ${y+10}v42l57 22v-42z`} fill="url(#reg-glass)" stroke="#F2FDFF" strokeWidth="2"/>
-          <path d={`M171 ${y+38}v42l49 19v-42z`} fill="url(#reg-glass)" stroke="#F2FDFF" strokeWidth="2"/>
-          <path d={`M261 ${y+44}v-39l67-26v39z`} fill="url(#reg-glass)" stroke="#F2FDFF" strokeWidth="2"/>
-          <path d={`M349 ${y+10}v-39l77-30v39z`} fill="url(#reg-glass)" stroke="#F2FDFF" strokeWidth="2"/>
-        </g>;
-      })}
-      <path d="M270 30V12c0-13 76-13 76 0v33" fill="#087FC5" stroke="#A8F3FF" strokeWidth="3"/>
-      <ellipse cx="308" cy="12" rx="38" ry="11" fill="#1B9EDB" stroke="#C4F8FF" strokeWidth="3"/>
-      <path d="M308 46v91h-39v62h-57v58h82v68h48" stroke="#13E9FF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" filter="url(#reg-glow)"/>
-      {[[269,199],[212,257],[294,257],[342,325]].map(([x,y],i)=><g key={i}><circle cx={x} cy={y} r="12" fill="#079ED5" stroke="#DFFFFF" strokeWidth="3"/><path d={`M${x} ${y-5}v10m-5-5h10`} stroke="white" strokeWidth="2" strokeLinecap="round"/></g>)}
-      <path d="M308 75c-7 10-12 16-12 24a12 12 0 0 0 24 0c0-8-5-14-12-24Z" fill="#12DDF5" stroke="white" strokeWidth="2"/>
-      <path d="M54 376h420l20 18H34z" fill="#D5F5FF" stroke="white" strokeWidth="3"/><path d="M34 394h460v13H34z" fill="#318FC1"/>
+      {paths[name] || null}
     </svg>
   );
 }
@@ -91,8 +94,11 @@ export default function Register() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '', apartmentId: '', householdId: '' });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationStep, setVerificationStep] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   if (user) return <Navigate to={portalPathFor(user)} replace />;
@@ -100,18 +106,26 @@ export default function Register() {
   // Keep the original controlled-field update behavior.
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  // Keep the existing API contract and registration flow unchanged.
   const submit = async (event) => {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError('');
     try {
+      if (!verificationStep) {
+        await post('/api/v1/auth/register/send-code', { email: form.email.trim() });
+        setNotice('If this email can be registered, a six-digit verification code has been sent.');
+        setVerificationStep(true);
+        setBusy(false);
+        return;
+      }
+
       const body = {
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
         apartmentId: Number(form.apartmentId),
+        verificationCode,
       };
       if (form.householdId) body.householdId = Number(form.householdId);
       await post('/api/v1/auth/register', body);
@@ -122,108 +136,198 @@ export default function Register() {
     }
   };
 
+  const resendCode = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await post('/api/v1/auth/register/send-code', { email: form.email.trim() });
+      setNotice('If this email can be registered, a verification code has been sent.');
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const passwordMet = form.password.length >= 8;
+
   return (
     <div className="af-register">
-      <section className="af-register__intro">
+      {/* Information panel */}
+      <section className="af-register__intro" aria-label="About AquaFlow">
         <Brand />
 
         <div className="af-register__intro-content">
-          <span className="af-register__eyebrow">SMART WATER MANAGEMENT</span>
-          <h1>Your community.<br/>Your water.<br/><span>One smart place.</span></h1>
+          <h2 className="af-register__headline">Your home’s water, in one place.</h2>
           <p className="af-register__intro-description">
             Join AquaFlow to keep household water usage, bills and community updates connected.
           </p>
 
-          <div className="af-register__showcase">
-            <div className="af-register__building-wrap">
-              <ApartmentIllustration />
-              <div className="af-register__building-caption"><AquaDrop/> <span><strong>AquaFlow Smart Apartment</strong><small>Connected water network</small></span></div>
-            </div>
-            <div className="af-register__benefits">
-              <div className="af-register__benefit"><span><FeatureIcon name="usage"/></span><div><strong>Track usage</strong><small>Understand household readings</small></div></div>
-              <div className="af-register__benefit"><span><FeatureIcon name="billing"/></span><div><strong>Clear billing</strong><small>Keep invoices close</small></div></div>
-              <div className="af-register__benefit"><span><FeatureIcon name="shield"/></span><div><strong>Stay informed</strong><small>Get important alerts</small></div></div>
+          <div className="af-register__meter" aria-hidden="true">
+            <span>Meter reading, kL</span>
+            <div className="af-register__odometer">
+              {['0', '0', '4', '2', '7'].map((digit, index) => <b key={index}>{digit}</b>)}
+              <b className="is-decimal">1</b>
             </div>
           </div>
+
+          <h3 className="af-register__section-title">What you’ll get</h3>
+          <ul className="af-register__benefits">
+            {BENEFITS.map((item) => <li key={item}><Icon name="check" />{item}</li>)}
+          </ul>
+
+          <h3 className="af-register__section-title">Before you start</h3>
+          <dl className="af-register__checklist">
+            {BEFORE_YOU_START.map((item) => (
+              <div key={item.title}><dt>{item.title}</dt><dd>{item.text}</dd></div>
+            ))}
+          </dl>
+
+          <h3 className="af-register__section-title">What happens next</h3>
+          <ol className="af-register__steps">
+            {NEXT_STEPS.map((step) => (
+              <li key={step.title}><strong>{step.title}</strong><span>{step.text}</span></li>
+            ))}
+          </ol>
         </div>
 
         <div className="af-register__intro-footer">
-          <span>Every drop counts. Every household matters.</span>
+          <span>Smart water management for apartment communities.</span>
           <span>© {new Date().getFullYear()} AquaFlow</span>
         </div>
-        <div className="af-register__wave" aria-hidden="true" />
       </section>
 
+      {/* Form panel */}
       <section className="af-register__panel">
-        <div className="af-register__card">
-          <Link className="af-register__back" to="/">← Back to home</Link>
-          <Brand mobile />
+        <div className="af-register__panel-inner">
+          <Link className="af-register__back" to="/"><Icon name="home" />Back to home</Link>
 
-          <div className="af-register__heading">
-            <span>RESIDENT REGISTRATION</span>
-            <h2>Create your account</h2>
-            <p>Set up your AquaFlow household access in a few steps.</p>
+          <div className="af-register__card">
+            <Brand mobile />
+
+            <div className="af-register__heading">
+              <h1>{verificationStep ? 'Verify your email' : 'Create your account'}</h1>
+              <p>{verificationStep
+                ? `Enter the six-digit code sent to ${form.email.trim()}.`
+                : 'Set up your AquaFlow household access. It takes about a minute.'}</p>
+            </div>
+
+            {error && <div className="af-register__alert" role="alert"><Alert>{error}</Alert></div>}
+            {notice && <div className="af-register__alert" role="status"><Alert type="success">{notice}</Alert></div>}
+
+            <form className="af-register__form" onSubmit={submit}>
+              {!verificationStep ? (
+                <>
+              <label className="af-register__field">
+                <span>Full name</span>
+                <div className="af-register__input-wrap">
+                  <Icon name="user" />
+                  <input type="text" name="name" required maxLength={100} autoComplete="name" placeholder="Enter your full name" value={form.name} onChange={set('name')} />
+                </div>
+              </label>
+
+              <label className="af-register__field">
+                <span>Email address</span>
+                <div className="af-register__input-wrap">
+                  <Icon name="mail" />
+                  <input type="email" name="email" required autoComplete="email" placeholder="you@example.com" value={form.email} onChange={set('email')} />
+                </div>
+              </label>
+
+              <label className="af-register__field">
+                <span>Password</span>
+                <div className="af-register__input-wrap">
+                  <Icon name="lock" />
+                  <input type={showPassword ? 'text' : 'password'} name="password" required minLength={8} maxLength={72} autoComplete="new-password" placeholder="Create a password" value={form.password} onChange={set('password')} />
+                  <button type="button" className="af-register__password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-pressed={showPassword} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
+                </div>
+                <small className={`af-register__hint${passwordMet ? ' is-met' : ''}`}>
+                  {passwordMet ? 'Long enough. Use at least 8 characters.' : 'Use at least 8 characters.'}
+                </small>
+              </label>
+
+              <div className="af-register__community-heading">
+                <strong>Your community</strong>
+                <span>Get these IDs from your society administrator.</span>
+              </div>
+
+              <div className="af-register__id-grid">
+                <label className="af-register__field">
+                  <span>Apartment ID <b aria-hidden="true">*</b></span>
+                  <div className="af-register__input-wrap af-register__input-wrap--plain">
+                    <input type="number" name="apartmentId" min="1" required inputMode="numeric" placeholder="e.g. 12" value={form.apartmentId} onChange={set('apartmentId')} />
+                  </div>
+                </label>
+                <label className="af-register__field">
+                  <span>Household ID <em>Optional</em></span>
+                  <div className="af-register__input-wrap af-register__input-wrap--plain">
+                    <input type="number" name="householdId" min="1" inputMode="numeric" placeholder="Add later if unknown" value={form.householdId} onChange={set('householdId')} />
+                  </div>
+                </label>
+              </div>
+
+              <p className="af-register__linking-note">You can ask your administrator to link your household after registration.</p>
+
+                </>
+              ) : (
+                <>
+                  <label className="af-register__field">
+                    <span>Six-digit verification code</span>
+                    <div className="af-register__input-wrap af-register__input-wrap--plain">
+                      <input
+                        type="text"
+                        name="verificationCode"
+                        required
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        placeholder="Enter code"
+                        value={verificationCode}
+                        onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      />
+                    </div>
+                    <small className="af-register__hint">The code expires after 10 minutes.</small>
+                  </label>
+                  <button className="af-register__submit" type="submit" disabled={busy} aria-busy={busy}>
+                    {busy ? 'Creating your account…' : 'Verify and create account'}
+                  </button>
+                  <div className="af-register__verification-actions">
+                    <button type="button" className="af-register__text-button" onClick={resendCode} disabled={busy}>
+                      Resend code
+                    </button>
+                    <button type="button" className="af-register__text-button" onClick={() => {
+                      setVerificationStep(false);
+                      setVerificationCode('');
+                      setNotice('');
+                      setError('');
+                    }} disabled={busy}>
+                      Edit registration details
+                    </button>
+                  </div>
+                </>
+              )}
+              {!verificationStep && (
+                <button className="af-register__submit" type="submit" disabled={busy} aria-busy={busy}>
+                  {busy ? 'Sending code…' : 'Verify email and continue'}
+                </button>
+              )}
+            </form>
+
+            <p className="af-register__signin">Already have an account? <Link to="/login">Sign in</Link></p>
           </div>
 
-          {error && <div className="af-register__alert"><Alert>{error}</Alert></div>}
-
-          <form className="af-register__form" onSubmit={submit}>
-            <label className="af-register__field">
-              <span>Full name</span>
-              <div className="af-register__input-wrap">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
-                <input type="text" required maxLength={100} autoComplete="name" placeholder="Enter your full name" value={form.name} onChange={set('name')}/>
-              </div>
-            </label>
-
-            <label className="af-register__field">
-              <span>Email address</span>
-              <div className="af-register__input-wrap">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-                <input type="email" required autoComplete="email" placeholder="you@example.com" value={form.email} onChange={set('email')}/>
-              </div>
-            </label>
-
-            <label className="af-register__field">
-              <span>Password</span>
-              <div className="af-register__input-wrap">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-                <input type={showPassword ? 'text' : 'password'} required minLength={8} maxLength={72} autoComplete="new-password" placeholder="Create a password" value={form.password} onChange={set('password')}/>
-                <button type="button" className="af-register__password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
-              </div>
-              <small className="af-register__hint">Use at least 8 characters.</small>
-            </label>
-
-            <div className="af-register__community-heading">
-              <strong>YOUR COMMUNITY</strong>
-              <span>Get these IDs from your society administrator.</span>
-            </div>
-
-            <div className="af-register__id-grid">
-              <label className="af-register__field">
-                <span>Apartment ID <b>*</b></span>
-                <div className="af-register__input-wrap af-register__input-wrap--plain">
-                  <input type="number" min="1" required inputMode="numeric" placeholder="e.g. 12" value={form.apartmentId} onChange={set('apartmentId')}/>
-                </div>
-              </label>
-              <label className="af-register__field">
-                <span>Household ID <em>Optional</em></span>
-                <div className="af-register__input-wrap af-register__input-wrap--plain">
-                  <input type="number" min="1" inputMode="numeric" placeholder="Add later if unknown" value={form.householdId} onChange={set('householdId')}/>
-                </div>
-              </label>
-            </div>
-
-            <p className="af-register__linking-note"><span>i</span>You can ask your administrator to link your household after registration.</p>
-
-            <button className="af-register__submit" type="submit" disabled={busy}>
-              {busy ? 'Creating your account...' : 'Create resident account'}
-              {!busy && <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>}
-            </button>
-          </form>
-
-          <p className="af-register__signin">Already have an account? <Link to="/login">Sign in</Link></p>
-          <p className="af-register__secure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.3 2.3 4.8-5"/></svg>Your account details are protected and secure.</p>
+          <div className="af-register__help">
+            <h2>Need help registering?</h2>
+            {HELP_ITEMS.map((item) => (
+              <details key={item.q}>
+                <summary>{item.q}</summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
     </div>

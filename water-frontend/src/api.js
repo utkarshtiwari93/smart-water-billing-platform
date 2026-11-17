@@ -72,3 +72,31 @@ export const get = (p) => api(p);
 export const post = (p, body) => api(p, { method: 'POST', body });
 export const put = (p, body) => api(p, { method: 'PUT', body });
 export const del = (p) => api(p, { method: 'DELETE' });
+
+export async function downloadFile(path, filename) {
+  const headers = {};
+  const token = tokenStore.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let response;
+  try {
+    response = await fetch(BASE + path, { headers });
+  } catch {
+    throw new ApiError(0, 'Cannot reach the server. Is the backend running on port 8080?');
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    if (response.status === 401 && token) onUnauthorized();
+    throw new ApiError(response.status, (data && data.message) || `Request failed (${response.status})`,
+      data && data.fieldErrors, data && data.code);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

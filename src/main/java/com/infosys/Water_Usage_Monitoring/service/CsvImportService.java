@@ -46,6 +46,10 @@ public class CsvImportService {
     // Jaan bujh ke @Transactional nahi: har row apni transaction mein save hoti hai (UsageService.saveReading),
     // isliye ek row fail ho to baaki rows rollback nahi hoti.
     public CsvImportResult importUsage(MultipartFile file) {
+        return importUsage(file, null);
+    }
+
+    public CsvImportResult importUsage(MultipartFile file, Long allowedApartmentId) {
         if (file == null || file.isEmpty())
             throw new BadRequestException("CSV file is empty");
         String name = file.getOriginalFilename();
@@ -106,6 +110,10 @@ public class CsvImportService {
                             .orElseThrow(() -> new ResourceNotFoundException(
                                     "No household found for meter " + r.meterNumber()));
                     cache.put(r.meterNumber(), h);
+                }
+                if (allowedApartmentId != null
+                        && !allowedApartmentId.equals(h.getApartment().getId())) {
+                    throw new BadRequestException("Meter belongs to a different apartment");
                 }
                 usageService.saveReading(h, r.date(), r.reading(), ReadingSource.CSV);
                 imported++;

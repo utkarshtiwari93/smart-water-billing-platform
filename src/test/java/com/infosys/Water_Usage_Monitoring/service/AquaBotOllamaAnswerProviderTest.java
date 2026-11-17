@@ -38,7 +38,7 @@ class AquaBotOllamaAnswerProviderTest {
     @BeforeEach
     void setUp() throws IOException {
         responseBody.set("{\"message\":{\"content\":\"Namaste! Check for leaks.\"}}");
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         server.createContext("/api/chat", exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes()));
             if (responseDelayMs.get() > 0) {
@@ -58,7 +58,7 @@ class AquaBotOllamaAnswerProviderTest {
         server.start();
 
         properties = new AquaBotOllamaProperties();
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort());
+        properties.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
         properties.setModel("test-model");
         properties.setConnectTimeoutMs(500);
         properties.setReadTimeoutMs(1000);
@@ -169,7 +169,7 @@ class AquaBotOllamaAnswerProviderTest {
     void answer_whenOllamaIsUnavailable_returnsServiceUnavailable() {
         int port = server.getAddress().getPort();
         server.stop(0);
-        properties.setBaseUrl("http://localhost:" + port);
+        properties.setBaseUrl("http://127.0.0.1:" + port);
 
         AquaBotException exception = assertThrows(
                 AquaBotException.class, () -> provider.answer("How can I conserve water?"));

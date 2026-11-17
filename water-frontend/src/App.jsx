@@ -36,6 +36,7 @@ export default function App() {
     <Suspense fallback={<Spinner text="Loading page..." />}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/" element={<PublicHome />} />
 

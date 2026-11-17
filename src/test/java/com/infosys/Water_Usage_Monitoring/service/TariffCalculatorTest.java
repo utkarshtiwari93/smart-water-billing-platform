@@ -1,9 +1,11 @@
 package com.infosys.Water_Usage_Monitoring.service;
 
 import com.infosys.Water_Usage_Monitoring.entity.TariffPlan;
+import com.infosys.Water_Usage_Monitoring.entity.TariffSlab;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -70,6 +72,29 @@ class TariffCalculatorTest {
 
         assertMoney("46.90", c.tier2Charge());
         assertMoney("146.90", c.total());
+    }
+
+    @Test
+    void multipleSlabs_chargeOnlyConsumptionWithinEachRange() {
+        TariffPlan plan = new TariffPlan();
+        plan.setSlabs(List.of(slab(0, "10", "10"), slab(1, "20", "20"), slab(2, null, "30")));
+
+        TariffCalculator.Charge charge = calculator.calculate(new BigDecimal("25000"), plan);
+
+        assertMoney("450.00", charge.total());
+        assertEquals(3, charge.slabs().size());
+        assertMoney("10", charge.slabs().get(0).consumptionKl());
+        assertMoney("10", charge.slabs().get(1).consumptionKl());
+        assertMoney("5", charge.slabs().get(2).consumptionKl());
+        assertMoney("150.00", charge.slabs().get(2).amount());
+    }
+
+    private TariffSlab slab(int order, String upper, String rate) {
+        TariffSlab slab = new TariffSlab();
+        slab.setOrder(order);
+        slab.setUpperLimitKl(upper == null ? null : new BigDecimal(upper));
+        slab.setRate(new BigDecimal(rate));
+        return slab;
     }
 
     @Test

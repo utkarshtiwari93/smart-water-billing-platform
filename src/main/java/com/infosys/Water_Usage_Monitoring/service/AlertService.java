@@ -14,6 +14,7 @@ import com.infosys.Water_Usage_Monitoring.repository.WaterUsageLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -36,7 +37,14 @@ public class AlertService {
 
     @Transactional
     public AlertRunResponse runChecks() {
-        List<WaterUsageLog> pending = logRepo.findTop500ByAlertCheckedFalseOrderByReadingDateAscIdAsc();
+        return runChecks(null);
+    }
+
+    @Transactional
+    public AlertRunResponse runChecks(Long apartmentId) {
+        List<WaterUsageLog> pending = apartmentId == null
+                ? logRepo.findTop500ByAlertCheckedFalseOrderByReadingDateAscIdAsc()
+                : logRepo.findTop500PendingForApartment(apartmentId, PageRequest.of(0, 500));
         Map<Long, AlertSettings> settingsByApartment = new HashMap<>();
         int alerts = 0;
         int emails = 0;
@@ -99,7 +107,8 @@ public class AlertService {
             n.setMessage(message);
 
             if (settings.isEmailEnabled()
-                    && mailer.send(user.getEmail(), subject(type, household), message)) {
+                    && mailer.sendHtml(user.getEmail(), subject(type, household),
+                    TransactionalEmailTemplates.alert(message))) {
                 n.setEmailSent(true);
                 emailsSent++;
             }
@@ -133,7 +142,8 @@ public class AlertService {
         return admin
                 ? String.format("Flat %s used %s L on %s, above the apartment limit of %s L.", flat, used, date, limit)
                 : String.format("High usage: your flat %s used %s L on %s, above the limit of %s L set by your society.",
-                flat, used, date, limit);
+                flat, used, date, limit)
+                + " Try checking for leaks, taking shorter showers, and running only full laundry loads.";
     }
 
     private String litres(BigDecimal v) {

@@ -4,10 +4,12 @@ import com.infosys.Water_Usage_Monitoring.dto.BillingCycleRequest;
 import com.infosys.Water_Usage_Monitoring.dto.BillingCycleResponse;
 import com.infosys.Water_Usage_Monitoring.enums.CycleStatus;
 import com.infosys.Water_Usage_Monitoring.service.BillingCycleService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,33 +30,42 @@ import java.util.List;
 public class BillingCycleController {
 
     private final BillingCycleService service;
+    private final AdminApartmentScope apartmentScope;
 
     @PostMapping("/apartments/{apartmentId}/billing-cycles")
     @ResponseStatus(HttpStatus.CREATED)
     public BillingCycleResponse create(@PathVariable Long apartmentId,
-                                       @Valid @RequestBody BillingCycleRequest r) {
+                                       @Valid @RequestBody BillingCycleRequest r,
+                                       Authentication authentication) {
+        apartmentScope.apartment(apartmentId, authentication.getName());
         return service.create(apartmentId, r);
     }
 
     @GetMapping("/apartments/{apartmentId}/billing-cycles")
     public List<BillingCycleResponse> list(@PathVariable Long apartmentId,
-                                           @RequestParam(required = false) CycleStatus status) {
+                                           @RequestParam(required = false) CycleStatus status,
+                                           Authentication authentication) {
+        apartmentScope.apartment(apartmentId, authentication.getName());
         return service.list(apartmentId, status);
     }
 
     @GetMapping("/billing-cycles/{id}")
-    public BillingCycleResponse get(@PathVariable Long id) {
+    public BillingCycleResponse get(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.cycle(id, authentication.getName());
         return service.get(id);
     }
 
     @PutMapping("/billing-cycles/{id}")
-    public BillingCycleResponse update(@PathVariable Long id, @Valid @RequestBody BillingCycleRequest r) {
+    public BillingCycleResponse update(@PathVariable Long id, @Valid @RequestBody BillingCycleRequest r,
+                                       Authentication authentication) {
+        apartmentScope.cycle(id, authentication.getName());
         return service.update(id, r);
     }
 
     @DeleteMapping("/billing-cycles/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.cycle(id, authentication.getName());
         service.delete(id);
     }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { get } from '../../api.js';
+import { downloadFile, get } from '../../api.js';
 import { useAuth } from '../../auth.jsx';
 import { dateStr, dateTimeStr, litres, money, number } from '../../fmt.js';
 import { Alert, Card, Empty, ErrorBox, PageHeader, Spinner, Stat, useAsync } from '../../ui.jsx';
@@ -8,6 +8,8 @@ import { Alert, Card, Empty, ErrorBox, PageHeader, Spinner, Stat, useAsync } fro
 export default function MyInvoices() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
   const { data, loading, error } = useAsync(
     () => (user.householdId ? get('/api/v1/invoices/my') : Promise.resolve([])),
     [user.householdId]
@@ -19,6 +21,17 @@ export default function MyInvoices() {
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))
   ));
+  const downloadInvoice = async (invoice) => {
+    setDownloadingId(invoice.id);
+    setDownloadError(null);
+    try {
+      await downloadFile(`/api/v1/invoices/${invoice.id}/pdf`, `${invoice.invoiceNumber}.pdf`);
+    } catch (downloadFailure) {
+      setDownloadError(downloadFailure);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   return (
     <div className="resident-page">
@@ -65,6 +78,7 @@ export default function MyInvoices() {
         </div>
       )}
       <Card title="Invoice history" actions={!loading && !error && <span className="management-result-count">{filteredInvoices.length} {filteredInvoices.length === 1 ? 'statement' : 'statements'}</span>}>
+        <ErrorBox error={downloadError} />
         {invoices.length > 0 && (
           <div className="management-toolbar">
             <label className="management-search">
@@ -91,7 +105,7 @@ export default function MyInvoices() {
                   <th className="num">Water consumption</th>
                   <th className="num">Total payable</th>
                   <th>Issued on</th>
-                  <th />
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -103,7 +117,15 @@ export default function MyInvoices() {
                     <td className="num">{litres(inv.consumptionLitres)}</td>
                     <td className="num"><strong>{money(inv.totalAmount)}</strong></td>
                     <td>{dateTimeStr(inv.issuedAt)}</td>
-                    <td className="right"><Link className="btn btn-ghost btn-sm" to={`/invoices/${inv.id}`}>View Invoice</Link></td>
+                    <td className="right">
+                      <div className="row gap">
+                        <Link className="btn btn-ghost btn-sm" to={`/invoices/${inv.id}`}>View Invoice</Link>
+                        <button className="btn btn-primary btn-sm" disabled={downloadingId !== null}
+                          onClick={() => downloadInvoice(inv)}>
+                          {downloadingId === inv.id ? 'Preparing...' : 'Download PDF'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

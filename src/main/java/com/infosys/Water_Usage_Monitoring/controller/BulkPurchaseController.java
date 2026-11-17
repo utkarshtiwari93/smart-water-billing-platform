@@ -4,10 +4,12 @@ import com.infosys.Water_Usage_Monitoring.dto.BulkPurchaseRequest;
 import com.infosys.Water_Usage_Monitoring.dto.BulkPurchaseResponse;
 import com.infosys.Water_Usage_Monitoring.dto.PurchaseSummaryResponse;
 import com.infosys.Water_Usage_Monitoring.service.BulkPurchaseService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,36 +29,45 @@ import java.util.List;
 public class BulkPurchaseController {
 
     private final BulkPurchaseService service;
+    private final AdminApartmentScope apartmentScope;
 
     @PostMapping("/billing-cycles/{cycleId}/purchases")
     @ResponseStatus(HttpStatus.CREATED)
-    public BulkPurchaseResponse create(@PathVariable Long cycleId, @Valid @RequestBody BulkPurchaseRequest r) {
+    public BulkPurchaseResponse create(@PathVariable Long cycleId, @Valid @RequestBody BulkPurchaseRequest r,
+                                       Authentication authentication) {
+        apartmentScope.cycle(cycleId, authentication.getName());
         return service.create(cycleId, r);
     }
 
     @GetMapping("/billing-cycles/{cycleId}/purchases")
-    public List<BulkPurchaseResponse> list(@PathVariable Long cycleId) {
+    public List<BulkPurchaseResponse> list(@PathVariable Long cycleId, Authentication authentication) {
+        apartmentScope.cycle(cycleId, authentication.getName());
         return service.list(cycleId);
     }
 
     @GetMapping("/billing-cycles/{cycleId}/purchases/summary")
-    public PurchaseSummaryResponse summary(@PathVariable Long cycleId) {
+    public PurchaseSummaryResponse summary(@PathVariable Long cycleId, Authentication authentication) {
+        apartmentScope.cycle(cycleId, authentication.getName());
         return service.summary(cycleId);
     }
 
     @GetMapping("/purchases/{id}")
-    public BulkPurchaseResponse get(@PathVariable Long id) {
+    public BulkPurchaseResponse get(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.purchase(id, authentication.getName());
         return service.get(id);
     }
 
     @PutMapping("/purchases/{id}")
-    public BulkPurchaseResponse update(@PathVariable Long id, @Valid @RequestBody BulkPurchaseRequest r) {
+    public BulkPurchaseResponse update(@PathVariable Long id, @Valid @RequestBody BulkPurchaseRequest r,
+                                       Authentication authentication) {
+        apartmentScope.purchase(id, authentication.getName());
         return service.update(id, r);
     }
 
     @DeleteMapping("/purchases/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.purchase(id, authentication.getName());
         service.delete(id);
     }
 }

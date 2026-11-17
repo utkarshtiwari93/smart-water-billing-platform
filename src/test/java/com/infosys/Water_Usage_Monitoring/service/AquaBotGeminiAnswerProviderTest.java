@@ -42,7 +42,7 @@ class AquaBotGeminiAnswerProviderTest {
         responseBody.set("""
                 {"candidates":[{"content":{"parts":[{"text":"Paani bachane ke liye "},{"text":"leaks check karein."}]}}]}
                 """);
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
         server.createContext("/v1beta/models/test-model:generateContent", exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes()));
             apiKeyHeader.set(exchange.getRequestHeaders().getFirst("x-goog-api-key"));
@@ -65,7 +65,7 @@ class AquaBotGeminiAnswerProviderTest {
         properties = new AquaBotGeminiProperties();
         properties.setApiKey("test-api-key");
         properties.setModel("test-model");
-        properties.setBaseUrl("http://localhost:" + server.getAddress().getPort() + "/v1beta");
+        properties.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1beta");
         properties.setConnectTimeoutMs(500);
         properties.setReadTimeoutMs(5000);
         properties.setMaxOutputTokens(400);
@@ -189,7 +189,7 @@ class AquaBotGeminiAnswerProviderTest {
     void answer_whenGeminiIsUnavailable_returnsServiceUnavailable() {
         int port = server.getAddress().getPort();
         server.stop(0);
-        properties.setBaseUrl("http://localhost:" + port + "/v1beta");
+        properties.setBaseUrl("http://127.0.0.1:" + port + "/v1beta");
 
         AquaBotException exception = assertThrows(
                 AquaBotException.class, () -> provider.answer("How can I conserve water?"));

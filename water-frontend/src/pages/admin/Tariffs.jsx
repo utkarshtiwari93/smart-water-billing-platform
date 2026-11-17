@@ -1,23 +1,42 @@
 import { useState } from 'react';
-import { del, get, post, put } from '../../api.js';
+import { api, del, get, post, put } from '../../api.js';
 import { useAdmin } from '../../adminContext.jsx';
-import { dateStr, money, number, today } from '../../fmt.js';
+import { dateStr, money, today } from '../../fmt.js';
 import { Alert, Badge, Card, Empty, ErrorBox, Field, FormModal, PageHeader, Spinner, useAction, useAsync } from '../../ui.jsx';
 
 function TariffForm({ apartmentId, initial, onClose }) {
+  const defaultSlabs = initial?.slabs?.length
+    ? initial.slabs.map((slab) => ({ upToKl: slab.upToKl ?? '', rate: slab.rate }))
+    : initial
+      ? [
+        { upToKl: initial.tier1LimitKl, rate: initial.baseRate },
+        { upToKl: '', rate: initial.higherRate },
+      ]
+      : [{ upToKl: 10, rate: '' }, { upToKl: '', rate: '' }];
   const [f, setF] = useState(initial
-    ? { name: initial.name, tier1LimitKl: initial.tier1LimitKl, baseRate: initial.baseRate, higherRate: initial.higherRate, effectiveFrom: initial.effectiveFrom, active: initial.active }
-    : { name: '', tier1LimitKl: 10, baseRate: '', higherRate: '', effectiveFrom: today(), active: true });
+    ? { name: initial.name, slabs: defaultSlabs, effectiveFrom: initial.effectiveFrom, active: initial.active }
+    : { name: '', slabs: defaultSlabs, effectiveFrom: today(), active: true });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-
-  const body = () => ({
-    name: f.name.trim(),
-    tier1LimitKl: Number(f.tier1LimitKl),
-    baseRate: Number(f.baseRate),
-    higherRate: Number(f.higherRate),
-    effectiveFrom: f.effectiveFrom,
-    active: f.active,
+  const updateSlab = (index, key, value) => setF({
+    ...f,
+    slabs: f.slabs.map((slab, i) => (i === index ? { ...slab, [key]: value } : slab)),
   });
+
+  const body = () => {
+    const slabs = f.slabs.map((slab, index) => ({
+      upToKl: index === f.slabs.length - 1 ? null : Number(slab.upToKl),
+      rate: Number(slab.rate),
+    }));
+    return {
+      name: f.name.trim(),
+      tier1LimitKl: slabs[0].upToKl ?? 0,
+      baseRate: slabs[0].rate,
+      higherRate: slabs[1]?.rate ?? slabs[0].rate,
+      effectiveFrom: f.effectiveFrom,
+      active: f.active,
+      slabs,
+    };
+  };
 
   return (
     <FormModal
@@ -26,14 +45,41 @@ function TariffForm({ apartmentId, initial, onClose }) {
       onSubmit={() => (initial ? put(`/api/v1/tariffs/${initial.id}`, body()) : post(`/api/v1/apartments/${apartmentId}/tariffs`, body()))}
     >
       <Field label="Plan name"><input required maxLength={100} value={f.name} onChange={set('name')} /></Field>
-      <Field label="Tier 1 limit (kL per cycle)" hint="Usage up to this limit is charged at the base rate.">
-        <input type="number" required min="0.01" step="0.01" value={f.tier1LimitKl} onChange={set('tier1LimitKl')} />
-      </Field>
-      <div className="grid-2">
-        <Field label="Base rate (per kL)"><input type="number" required min="0" step="0.01" value={f.baseRate} onChange={set('baseRate')} /></Field>
-        <Field label="Higher rate (per kL)" hint="Usage above the limit. Must not be below the base rate.">
-          <input type="number" required min="0" step="0.01" value={f.higherRate} onChange={set('higherRate')} />
-        </Field>
+      <div className="field">
+        <span className="field-label">Progressive price slabs</span>
+        <div className="stack-sm">
+          {f.slabs.map((slab, index) => {
+            const last = index === f.slabs.length - 1;
+            const from = index === 0 ? 0 : f.slabs[index - 1].upToKl;
+            return (
+              <div className="grid-2" key={index}>
+                <Field label={`Slab ${index + 1} (${from || 0} kL and above)`}>
+                  {last ? <input value="No upper limit" readOnly aria-label={`Slab ${index + 1} upper limit`} />
+                    : <input type="number" required min="0.01" step="0.01" value={slab.upToKl}
+                      aria-label={`Slab ${index + 1} upper limit in kL`}
+                      onChange={(event) => updateSlab(index, 'upToKl', event.target.value)} />}
+                </Field>
+                <Field label="Rate per kL">
+                  <div className="row gap">
+                    <input type="number" required min="0" step="0.01" value={slab.rate}
+                      aria-label={`Slab ${index + 1} rate per kL`}
+                      onChange={(event) => updateSlab(index, 'rate', event.target.value)} />
+                    {f.slabs.length > 1 && <button type="button" className="btn btn-ghost btn-sm"
+                      onClick={() => setF({ ...f, slabs: f.slabs.filter((_, i) => i !== index) })}>Remove</button>}
+                  </div>
+                </Field>
+              </div>
+            );
+          })}
+          <button type="button" className="btn btn-ghost btn-sm"
+            onClick={() => setF({
+              ...f,
+              slabs: [...f.slabs.slice(0, -1), { upToKl: '', rate: '' }, f.slabs[f.slabs.length - 1]],
+            })}>
+            Add slab
+          </button>
+        </div>
+        <span className="field-hint">Each limit is cumulative in kL. The final slab has no upper limit; rates cannot decrease.</span>
       </div>
       <Field label="Effective from"><input type="date" required value={f.effectiveFrom} onChange={set('effectiveFrom')} /></Field>
       <label className="check-row">
@@ -50,6 +96,7 @@ export default function Tariffs() {
   const [modal, setModal] = useState(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activationId, setActivationId] = useState(null);
   const act = useAction(list.reload);
   const tariffs = list.data || [];
   const activeCount = tariffs.filter((tariff) => tariff.active).length;
@@ -66,10 +113,10 @@ export default function Tariffs() {
         actions={<button className="btn btn-primary" onClick={() => setModal({})}><span aria-hidden="true">＋</span> New plan</button>}
       />
       <Alert type="info">
-        Bill per household = (usage up to the limit x base rate) + (usage above the limit x higher rate).
-        Rates are locked once a billing cycle using the plan is finalized.
+        Each rate applies only to consumption within its slab. Plans used by finalized or archived cycles cannot have their slabs changed.
       </Alert>
       <ErrorBox error={list.error || act.error} />
+      {act.message && <Alert type="success">{act.message}</Alert>}
       {act.dialog}
       <div className="management-summary-row">
         <div className="management-summary-card">
@@ -125,19 +172,31 @@ export default function Tariffs() {
         ) : filteredTariffs.length === 0 ? <Empty>No plans match your search or filter.</Empty> : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Name</th><th className="num">Limit (kL)</th><th className="num">Base rate</th><th className="num">Higher rate</th><th>Effective from</th><th>Status</th><th /></tr></thead>
+              <thead><tr><th>Name</th><th>Progressive slabs</th><th>Effective from</th><th>Status</th><th /></tr></thead>
               <tbody>
                 {filteredTariffs.map((t) => (
                   <tr key={t.id}>
                     <td><strong>{t.name}</strong></td>
-                    <td className="num">{number(t.tier1LimitKl)}</td>
-                    <td className="num">{money(t.baseRate)}</td>
-                    <td className="num">{money(t.higherRate)}</td>
+                    <td>{(t.slabs || []).map((slab) => (
+                      `${slab.fromKl}-${slab.upToKl == null ? '∞' : slab.upToKl} kL @ ${money(slab.rate)}`
+                    )).join(' · ')}</td>
                     <td>{dateStr(t.effectiveFrom)}</td>
                     <td><Badge tone={t.active ? 'green' : 'grey'}>{t.active ? 'Active' : 'Inactive'}</Badge></td>
                     <td className="right">
                       <div className="row gap end">
                         <button className="btn btn-ghost btn-sm" onClick={() => setModal({ item: t })}>Edit</button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          disabled={activationId !== null}
+                          onClick={async () => {
+                            setActivationId(t.id);
+                            await act.run(
+                              () => api(`/api/v1/tariffs/${t.id}/activation?active=${!t.active}`, { method: 'PATCH' }),
+                              { success: `Tariff plan "${t.name}" ${t.active ? 'deactivated' : 'activated'}.` }
+                            );
+                            setActivationId(null);
+                          }}
+                        >{activationId === t.id ? 'Updating...' : t.active ? 'Deactivate' : 'Activate'}</button>
                         <button
                           className="btn btn-danger btn-sm"
                           onClick={() => act.run(() => del(`/api/v1/tariffs/${t.id}`), { confirm: `Delete plan "${t.name}"?` })}

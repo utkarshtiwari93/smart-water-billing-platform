@@ -15,4 +15,9 @@ public interface TariffPlanRepository extends JpaRepository<TariffPlan, Long> {
 
     Optional<TariffPlan> findFirstByApartmentIdAndActiveTrueAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
             Long apartmentId, LocalDate date);
+
+    boolean existsByApartmentIdAndEffectiveFromAndActiveTrue(Long apartmentId, LocalDate effectiveFrom);
+
+    boolean existsByApartmentIdAndIdNotAndEffectiveFromAndActiveTrue(
+            Long apartmentId, Long id, LocalDate effectiveFrom);
 }

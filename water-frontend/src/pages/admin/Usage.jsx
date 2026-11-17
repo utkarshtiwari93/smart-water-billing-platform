@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, get, post } from '../../api.js';
 import { useAdmin } from '../../adminContext.jsx';
 import { dateStr, daysAgo, litres, number, today } from '../../fmt.js';
@@ -114,12 +114,30 @@ export default function Usage() {
     () => (hid ? get(`/api/v1/usage?householdId=${hid}&from=${from}&to=${to}`) : Promise.resolve([])),
     [hid, from, to]
   );
+  const trend = useAsync(
+    () => (hid
+      ? get(`/api/v1/usage/trend?householdId=${hid}&from=${from}&to=${to}&granularity=DAY`)
+      : Promise.resolve(null)),
+    [hid, from, to]
+  );
+  const apartmentUsage = useAsync(
+    () => get(`/api/v1/usage/apartment?apartmentId=${apartmentId}&from=${from}&to=${to}`),
+    [apartmentId, from, to]
+  );
 
   if (households.loading) return <Spinner />;
   const list = households.data || [];
   const rows = usage.data || [];
-  const total = rows.reduce((s, r) => s + Number(r.consumptionLitres), 0);
-  const chart = rows.map((r) => ({ date: dateStr(r.readingDate), litres: Number(r.consumptionLitres) }));
+  const total = Number(trend.data?.totalConsumptionLitres ?? 0);
+  const chart = (trend.data?.points || []).map((point) => ({
+    date: dateStr(point.period),
+    litres: point.consumptionLitres == null ? null : Number(point.consumptionLitres),
+  }));
+  const comparison = (apartmentUsage.data?.households || []).map((household) => ({
+    flat: household.flatNumber,
+    litres: household.hasReadings ? Number(household.consumptionLitres) : null,
+    unusuallyHigh: household.unusuallyHigh,
+  }));
   const current = list.find((h) => String(h.id) === String(hid));
 
   return (
@@ -129,12 +147,49 @@ export default function Usage() {
         subtitle="Review household meter logs, track volume over time, and import reading batches."
         actions={<button className="btn btn-primary" disabled={!hid} onClick={() => setAdding(true)}><span aria-hidden="true">＋</span> Add reading</button>}
       />
-      <ErrorBox error={households.error || usage.error} />
+      <ErrorBox error={households.error || usage.error || trend.error || apartmentUsage.error} />
 
       {list.length === 0 ? (
         <Alert type="info">Add households first to record water meter readings.</Alert>
       ) : (
         <>
+          <Card title="All-household usage comparison" actions={(
+            <span className="management-result-count">
+              {apartmentUsage.data?.apartmentAverageLitres == null
+                ? 'Apartment average unavailable'
+                : `Average ${litres(apartmentUsage.data.apartmentAverageLitres)} · ${apartmentUsage.data.householdsWithReadings} homes`}
+            </span>
+          )}>
+            {apartmentUsage.loading ? <Spinner /> : comparison.length === 0 ? (
+              <Empty>No household consumption is recorded for this period.</Empty>
+            ) : (
+              <>
+                <div className="chart">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={comparison} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
+                      <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="flat" fontSize={11} stroke="#64748b" tickLine={false} />
+                      <YAxis fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(value) => [value == null ? 'No readings' : `${number(value)} L`, 'Consumption']} />
+                      {apartmentUsage.data?.apartmentAverageLitres != null && (
+                        <ReferenceLine y={Number(apartmentUsage.data.apartmentAverageLitres)}
+                          stroke="#7c3aed" strokeDasharray="5 4" label="Apartment average" />
+                      )}
+                      <Bar dataKey="litres" name="Consumption" radius={[5, 5, 0, 0]} maxBarSize={48}>
+                        {comparison.map((household) => (
+                          <Cell key={household.flat} fill={household.unusuallyHigh ? '#ea580c' : '#0284c7'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="muted small">
+                  The average excludes homes without covered reading intervals. Orange bars are more than 50% above the apartment average; blank bars have no valid readings for this period.
+                </p>
+              </>
+            )}
+          </Card>
+
           <Card>
             <div className="filters">
               <Field label="Household">
@@ -154,7 +209,7 @@ export default function Usage() {
             <Stat
               label="Total volume in range"
               value={litres(total)}
-              hint={current ? `Flat ${current.flatNumber}` : ''}
+              hint={current ? `Flat ${current.flatNumber} · ${trend.data?.coveredDays ?? 0} covered days` : ''}
               icon={(
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--brand)' }}>
                   <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
@@ -164,7 +219,7 @@ export default function Usage() {
             <Stat
               label="Meter readings recorded"
               value={rows.length}
-              hint={`${dateStr(from)} – ${dateStr(to)}`}
+              hint={`Covered days · ${dateStr(from)} – ${dateStr(to)}`}
               icon={(
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--info)' }}>
                   <circle cx="12" cy="12" r="10" />
@@ -174,8 +229,8 @@ export default function Usage() {
             />
             <Stat
               label="Average consumption"
-              value={rows.length ? litres(total / rows.length) : '-'}
-              hint="Per meter reading interval"
+              value={trend.data?.coveredDays ? litres(total / trend.data.coveredDays) : '-'}
+              hint="Estimated average per covered day"
               icon={(
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--warning)' }}>
                   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -185,8 +240,9 @@ export default function Usage() {
           </div>
 
           <Card title="Consumption profile">
-            {usage.loading ? <Spinner /> : rows.length === 0 ? <Empty>No readings in this date range.</Empty> : (
+            {trend.loading ? <Spinner /> : trend.data?.coveredDays === 0 ? <Empty>No valid reading intervals cover this date range.</Empty> : (
               <>
+                <p className="muted small">Daily estimates spread each meter-reading interval evenly across calendar days. Gaps without a covering interval are left blank.</p>
                 <div className="chart">
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -201,7 +257,7 @@ export default function Usage() {
                           boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
                           fontSize: '12px',
                         }}
-                        formatter={(v) => [`${number(v)} L`, 'Consumption']}
+                        formatter={(v) => [v == null ? 'No covered readings' : `${number(v)} L`, 'Consumption']}
                       />
                       <Bar dataKey="litres" fill="#0d9488" radius={[5, 5, 0, 0]} maxBarSize={48} />
                     </BarChart>

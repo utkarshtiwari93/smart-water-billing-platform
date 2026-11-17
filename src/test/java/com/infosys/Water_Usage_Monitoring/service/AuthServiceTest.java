@@ -4,6 +4,8 @@ import com.infosys.Water_Usage_Monitoring.dto.AuthResponse;
 import com.infosys.Water_Usage_Monitoring.dto.LoginRequest;
 import com.infosys.Water_Usage_Monitoring.dto.RegisterRequest;
 import com.infosys.Water_Usage_Monitoring.entity.Apartment;
+import com.infosys.Water_Usage_Monitoring.entity.AuthChallenge;
+import com.infosys.Water_Usage_Monitoring.entity.AuthChallenge.Purpose;
 import com.infosys.Water_Usage_Monitoring.entity.Household;
 import com.infosys.Water_Usage_Monitoring.entity.User;
 import com.infosys.Water_Usage_Monitoring.enums.Role;
@@ -47,6 +49,7 @@ class AuthServiceTest {
     @Mock UserService userService;
     @Mock PasswordEncoder passwordEncoder;
     @Mock JwtService jwtService;
+    @Mock VerificationCodeService verificationCodeService;
     @InjectMocks AuthService authService;
 
     private Apartment apartment(long id) {
@@ -56,13 +59,78 @@ class AuthServiceTest {
     }
 
     @Test
+    void sendRegistrationCode_skipsExistingEmailWithoutSending() {
+        when(userRepo.existsByEmail("ravi@test.com")).thenReturn(true);
+
+        authService.sendRegistrationCode("Ravi@Test.com");
+
+        verify(verificationCodeService, never()).sendCode(any(), any());
+    }
+
+    @Test
+    void sendRegistrationCode_sendsForNewEmail() {
+        when(userRepo.existsByEmail("fresh@test.com")).thenReturn(false);
+
+        authService.sendRegistrationCode("Fresh@Test.com");
+
+        verify(verificationCodeService).sendCode("fresh@test.com", Purpose.REGISTRATION);
+    }
+
+    @Test
+    void requestPasswordReset_sendsOnlyForPasswordAccounts() {
+        User passwordUser = storedUser();
+        when(userRepo.findByEmail("ravi@test.com")).thenReturn(Optional.of(passwordUser));
+
+        authService.requestPasswordReset("Ravi@Test.com");
+
+        verify(verificationCodeService).sendCode("ravi@test.com", Purpose.PASSWORD_RESET);
+    }
+
+    @Test
+    void requestPasswordReset_skipsUnknownAndGoogleOnlyAccounts() {
+        when(userRepo.findByEmail("none@test.com")).thenReturn(Optional.empty());
+        authService.requestPasswordReset("none@test.com");
+        verify(verificationCodeService, never()).sendCode(any(), any());
+
+        User googleOnly = storedUser();
+        googleOnly.setPasswordHash(null);
+        when(userRepo.findByEmail("ravi@test.com")).thenReturn(Optional.of(googleOnly));
+        authService.requestPasswordReset("ravi@test.com");
+        verify(verificationCodeService, never()).sendCode(any(), any());
+    }
+
+    @Test
+    void verifyPasswordResetCode_delegatesNormalizedEmail() {
+        when(verificationCodeService.verifyResetCode("ravi@test.com", "123456")).thenReturn("reset-token");
+
+        assertEquals("reset-token", authService.verifyPasswordResetCode("Ravi@Test.com", "123456"));
+    }
+
+    @Test
+    void resetPassword_updatesHashAndDeletesChallenge() {
+        AuthChallenge challenge = new AuthChallenge();
+        User user = storedUser();
+        when(verificationCodeService.consumeResetToken("ravi@test.com", "reset-token")).thenReturn(challenge);
+        when(userRepo.findByEmail("ravi@test.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("NewPass@123")).thenReturn("NEW-HASH");
+
+        authService.resetPassword("Ravi@Test.com", "reset-token", "NewPass@123");
+
+        assertEquals("NEW-HASH", user.getPasswordHash());
+        verify(userRepo).save(user);
+        verify(verificationCodeService).delete(challenge);
+    }
+
+    @Test
     void register_createsResidentWithHashedPasswordAndLowercaseEmail() {
         when(userRepo.existsByEmail("ravi@test.com")).thenReturn(false);
         when(apartmentService.find(1L)).thenReturn(apartment(1L));
         when(passwordEncoder.encode("Ravi@1234")).thenReturn("HASHED");
+        when(verificationCodeService.consumeCode("ravi@test.com", Purpose.REGISTRATION, "123456"))
+                .thenReturn(new AuthChallenge());
         when(userRepo.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        authService.register(new RegisterRequest("Ravi", "Ravi@Test.com", "Ravi@1234", 1L, null));
+        authService.register(new RegisterRequest("Ravi", "Ravi@Test.com", "Ravi@1234", 1L, null, "123456"));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepo).save(captor.capture());
@@ -70,6 +138,7 @@ class AuthServiceTest {
         assertEquals(Role.RESIDENT, saved.getRole());
         assertEquals("HASHED", saved.getPasswordHash());
         assertEquals("ravi@test.com", saved.getEmail());
+        verify(verificationCodeService).consumeCode("ravi@test.com", Purpose.REGISTRATION, "123456");
     }
 
     @Test
@@ -77,7 +146,7 @@ class AuthServiceTest {
         when(userRepo.existsByEmail("ravi@test.com")).thenReturn(true);
 
         assertThrows(DuplicateResourceException.class,
-                () -> authService.register(new RegisterRequest("Ravi", "ravi@test.com", "Ravi@1234", 1L, null)));
+                () -> authService.register(new RegisterRequest("Ravi", "ravi@test.com", "Ravi@1234", 1L, null, "123456")));
         verify(userRepo, never()).save(any(User.class));
     }
 
@@ -91,7 +160,7 @@ class AuthServiceTest {
         when(householdRepo.findById(5L)).thenReturn(Optional.of(other));
 
         assertThrows(ResourceNotFoundException.class,
-                () -> authService.register(new RegisterRequest("Ravi", "ravi@test.com", "Ravi@1234", 1L, 5L)));
+                () -> authService.register(new RegisterRequest("Ravi", "ravi@test.com", "Ravi@1234", 1L, 5L, "123456")));
     }
 
     private User storedUser() {

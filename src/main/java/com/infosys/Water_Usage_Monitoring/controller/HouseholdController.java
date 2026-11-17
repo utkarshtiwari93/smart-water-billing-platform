@@ -3,6 +3,7 @@ package com.infosys.Water_Usage_Monitoring.controller;
 import com.infosys.Water_Usage_Monitoring.dto.HouseholdRequest;
 import com.infosys.Water_Usage_Monitoring.dto.HouseholdResponse;
 import com.infosys.Water_Usage_Monitoring.service.HouseholdService;
+import com.infosys.Water_Usage_Monitoring.security.AdminApartmentScope;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 @PreAuthorize("hasRole('ADMIN')")
 @RestController
@@ -23,16 +25,25 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RequiredArgsConstructor
 public class HouseholdController {
     private final HouseholdService service;
+    private final AdminApartmentScope apartmentScope;
 
     @GetMapping("/{id}")
-    public HouseholdResponse get(@PathVariable Long id) { return service.get(id); }
+    public HouseholdResponse get(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.household(id, authentication.getName());
+        return service.get(id);
+    }
 
     @PutMapping("/{id}")
-    public HouseholdResponse update(@PathVariable Long id, @Valid @RequestBody HouseholdRequest r) {
+    public HouseholdResponse update(@PathVariable Long id, @Valid @RequestBody HouseholdRequest r,
+                                    Authentication authentication) {
+        apartmentScope.household(id, authentication.getName());
         return service.update(id, r);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) { service.delete(id); }
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        apartmentScope.household(id, authentication.getName());
+        service.delete(id);
+    }
 }

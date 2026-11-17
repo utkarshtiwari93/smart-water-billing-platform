@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -116,7 +117,7 @@ class AlertServiceTest {
         when(settingsService.getOrCreate(1L)).thenReturn(settings(null, true, true));
         stubHistory("100", "110", "95", "105", "100");
         stubRecipients(true);
-        when(mailer.send(anyString(), anyString(), anyString())).thenReturn(true);
+        when(mailer.sendHtml(anyString(), anyString(), anyString())).thenReturn(true);
 
         AlertRunResponse r = service.runChecks();
 
@@ -195,6 +196,27 @@ class AlertServiceTest {
     }
 
     @Test
+    void smtpFailure_keepsNotificationAndDoesNotInterruptAlertRun() {
+        WaterUsageLog spike = log(10L, "400");
+        when(logRepo.findTop500ByAlertCheckedFalseOrderByReadingDateAscIdAsc()).thenReturn(List.of(spike));
+        when(settingsService.getOrCreate(1L)).thenReturn(settings("350", false, true));
+        stubHistory("100", "110", "95", "105", "100");
+        stubRecipients(true);
+        when(mailer.sendHtml(anyString(), anyString(), anyString())).thenReturn(false);
+
+        AlertRunResponse result = service.runChecks();
+
+        assertEquals(1, result.alertsCreated());
+        assertEquals(0, result.emailsSent());
+        assertTrue(spike.isAlertChecked());
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepo, times(2)).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().noneMatch(Notification::isEmailSent));
+        verify(mailer).sendHtml(eq("sita@test.com"), anyString(),
+                org.mockito.ArgumentMatchers.contains("shorter showers"));
+    }
+
+    @Test
     void emailSwitchedOff_savesNotificationsWithoutSendingEmail() {
         WaterUsageLog spike = log(10L, "400");
         when(logRepo.findTop500ByAlertCheckedFalseOrderByReadingDateAscIdAsc()).thenReturn(List.of(spike));
@@ -206,7 +228,7 @@ class AlertServiceTest {
 
         assertEquals(1, r.alertsCreated());
         assertEquals(0, r.emailsSent());
-        verify(mailer, never()).send(anyString(), anyString(), anyString());
+        verify(mailer, never()).sendHtml(anyString(), anyString(), anyString());
     }
 
     @Test
